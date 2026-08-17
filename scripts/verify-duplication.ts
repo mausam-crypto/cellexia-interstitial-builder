@@ -50,7 +50,7 @@ async function main() {
     ["pricing sells jawline variants", out.html.includes("42739675037832:1,55089188438391:1")],
     ["shared guarantee carried over", out.html.includes("60-day money-back guarantee")],
     ["shared purity/pillars/disclaimer present", out.html.includes('id="cx-disclaimer"') && out.html.includes("Prize-winning science")],
-    ["19 sections", out.sectionCount === 19],
+    ["18 sections", out.sectionCount === 18],
     ["every CTA anchors to the offer", (out.html.match(/href="#cx-offer"/g) || []).length >= 4],
   ];
   for (const [label, ok] of checks) console.log(`   ${ok ? "✓" : "✗"} ${label}`);

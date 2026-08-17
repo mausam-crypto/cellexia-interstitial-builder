@@ -19,8 +19,6 @@ export interface RenderPageOptions {
   /** e.g. "https://cellexialabs.com" for preview links; "" for liquid (uses routes.*) */
   storeRoot?: string;
   proxyPath?: string; // "/a/go"
-  /** For preview: wrap in a mock store chrome (header/footer). */
-  mockChrome?: boolean;
   /** Extra <head> for standalone preview documents */
   standalone?: boolean;
   /** Draft preview banner text */
@@ -79,6 +77,10 @@ export function renderPage(opts: RenderPageOptions): RenderedPage {
   }
   if (!pricing) warnings.push("No pricing section: CTAs point at #cx-offer which does not exist.");
 
+  // Store header: shown by default (the theme renders it). Hidden per page or globally via CSS on the theme's header group.
+  const hideHeader = page.header === "hide" || (page.header !== "show" && brand.showHeader === false);
+  const hideHeaderStyle = hideHeader && brand.headerSelectors?.trim() ? `<style id="cx-hide-header">${brand.headerSelectors.replace(/[{}<>]/g, "")}{display:none!important}</style>` : "";
+
   const css = `<style id="cx-css">${pageCss(brand)}</style>`;
   const scriptCfg = {
     pageId,
@@ -103,9 +105,8 @@ export function renderPage(opts: RenderPageOptions): RenderedPage {
   const noindex = page.seo?.noindex !== false ? `<meta name="robots" content="noindex,nofollow">` : "";
   const banner = opts.banner ? `<div class="cx-preview-banner" style="background:#FFF3C4;color:#5B4A00;text-align:center;font:600 13px system-ui;padding:8px 12px;border-bottom:1px solid #F0D96B">${esc(opts.banner)}</div>` : "";
 
-  let body = `${preamble}${banner}<div id="cx-page" data-cx-page="${esc(pageId)}" data-cx-slug="${esc(slug)}"${dataAttrs}>${css}${noindex}${sectionsHtml}${disclaimer}${sticky}${js}${seoTitle}</div>`;
+  let body = `${preamble}${banner}<div id="cx-page" data-cx-page="${esc(pageId)}" data-cx-slug="${esc(slug)}"${dataAttrs}>${css}${hideHeaderStyle}${noindex}${sectionsHtml}${disclaimer}${sticky}${js}${seoTitle}</div>`;
 
-  if (opts.mockChrome) body = wrapWithMockChrome(body, brand);
   if (opts.standalone) body = standaloneDocument(body, page, brand);
 
   const bytes = Buffer.byteLength(body, "utf8");
@@ -135,14 +136,6 @@ function localizedPageString(ctx: RenderContext, path: string, value: string): s
   });
   out += `{% else %}${inline(value, mode)}{% endif %}`;
   return out;
-}
-
-/** A neutral stand-in for the store header/footer used by the in-admin preview only. */
-export function wrapWithMockChrome(inner: string, brand: BrandSettings): string {
-  const name = esc(brand.storeName || "Store");
-  const header = `<div class="cx-mock-header" style="font:600 13px system-ui;color:#1D1D1B;border-bottom:1px solid #eee;background:#fff"><div style="max-width:1080px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:14px 20px"><span style="letter-spacing:.2em;font-weight:800">${name.toUpperCase()}</span><span style="opacity:.6">Store header (theme) · Shop · About · FAQ · Cart</span></div></div>`;
-  const footer = `<div class="cx-mock-footer" style="font:13px system-ui;color:#fff;background:#1D1D1B;padding:32px 20px;text-align:center"><div style="max-width:1080px;margin:0 auto">Store footer (theme): navigation · newsletter · legal links · payment icons<br><span style="opacity:.6">© ${new Date().getFullYear()} ${name}. All rights reserved.</span></div></div>`;
-  return `${header}${inner}${footer}`;
 }
 
 export function standaloneDocument(body: string, page: PageContent, brand: BrandSettings): string {

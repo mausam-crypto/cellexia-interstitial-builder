@@ -71,6 +71,12 @@ export interface CartAddOn {
   variantId: string;
   quantity: number;
   label?: string;
+  /**
+   * Product handle of the add-on. When set, the storefront link only includes the add-on if
+   * `all_products[handle].available` (published to the Online Store + in stock) — an unpublished
+   * free gift then silently drops out instead of breaking the button with "Cannot find variant".
+   */
+  productHandle?: string;
 }
 
 /** Commerce mapping of one pricing card (lives inside the pricing section's card item). */
@@ -98,8 +104,13 @@ export interface CommerceSettings {
   productId?: string;
   discountCode: string;
   discountEnabled: boolean;
-  /** "checkout": cart permalink straight to checkout. "cart": /discount → /cart/add → cart page. */
-  checkoutMode: "checkout" | "cart";
+  /**
+   * What the add-to-cart buttons do. "default" = the store-wide setting (Settings → After add to cart).
+   *  "collection": add to cart, then land on a collection (Shop All) with the cart drawer open
+   *  "checkout":   cart permalink straight to checkout
+   *  "cart":       /discount → /cart/add → cart page
+   */
+  checkoutMode: "default" | "collection" | "checkout" | "cart";
   utmPassthrough: boolean;
   /** Show live Shopify prices (auto-localised per market) instead of the manual strings. */
   livePrices: boolean;
@@ -128,6 +139,8 @@ export interface PageContent {
   seo: SeoSettings;
   /** Optional per-page override of the global disclaimer text. Disclaimer can never be removed. */
   disclaimerOverride?: string;
+  /** Store header: "default" follows Settings (shown by default), "show" / "hide" override per page. */
+  header?: "default" | "show" | "hide";
   /** locale → (path → translated string). Paths look like "sections.<id>.<key>" or "sections.<id>.<key>.<index>.<subkey>". */
   translations: Record<string, Record<string, string>>;
   /** Internal note for the team (angle, advertorial link, etc.) */
@@ -167,6 +180,18 @@ export interface BrandSettings {
     imageProvider: "higgsfield" | "claude-svg";
     higgsfieldModel: string; // e.g. "higgsfield-ai/soul/standard" | "nano-banana"
     imageStyle: string; // appended to every image prompt
+  };
+  /** Store header (theme) — shown by default; can be hidden globally or per page. */
+  showHeader: boolean;
+  /** CSS selectors of the theme's header group (used when hiding the header). */
+  headerSelectors: string;
+  /** Behaviour after a pricing-card button is clicked. */
+  afterAddToCart: {
+    mode: "collection" | "checkout" | "cart";
+    /** Collection handle to land on in "collection" mode (e.g. shop-all). */
+    collectionHandle: string;
+    /** Ask the theme to open its cart drawer on arrival (needs the app embed enabled in the theme editor). */
+    openCart: boolean;
   };
   /** Discount defaults offered in the wizard */
   discountDefaults: {

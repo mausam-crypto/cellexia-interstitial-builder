@@ -1,0 +1,56 @@
+{%- comment -%}
+  App embed: when a visitor arrives from an interstitial add-to-cart button, the URL carries
+  ?cx_cart=open (Settings → After add to cart → "open the cart drawer"). This script asks the
+  theme to open its cart drawer/mini-cart by clicking the header cart trigger, then cleans the URL.
+  Nothing runs on pages without the parameter.
+{%- endcomment -%}
+<script>
+(function () {
+  if (!/[?&]cx_cart=open(?:&|$)/.test(location.search)) return;
+  var selectors = {{ block.settings.trigger_selector | json }} || 'button.icon--cart, [data-cart-toggle], [data-action="open-cart"], .js-cart-toggle, .cart-toggle, a[href$="/cart"], #cart-icon-bubble';
+  var delay = Number({{ block.settings.delay_ms | json }}) || 500;
+  function clean() { try { var u = new URL(location.href); u.searchParams.delete('cx_cart'); history.replaceState(null, '', u.pathname + (u.search || '') + u.hash); } catch (e) {} }
+  function tryOpen() {
+    var els = document.querySelectorAll(selectors);
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      var r = el.getBoundingClientRect();
+      if (r.width === 0 && r.height === 0) continue; // hidden (e.g. mobile/desktop duplicates)
+      try { el.click(); return true; } catch (e) {}
+    }
+    return false;
+  }
+  function run() {
+    var attempts = 0;
+    var timer = setInterval(function () {
+      attempts++;
+      if (tryOpen() || attempts > 12) { clearInterval(timer); clean(); }
+    }, delay);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run); else run();
+})();
+</script>
+{% schema %}
+{
+  "name": "Interstitial: open cart after add",
+  "target": "body",
+  "settings": [
+    {
+      "type": "text",
+      "id": "trigger_selector",
+      "label": "Cart drawer trigger (CSS selector)",
+      "default": "button.icon--cart, [data-cart-toggle], a[href$=\"/cart\"]",
+      "info": "The header element the theme uses to open its cart drawer. Default matches the Cellexia (Sleepify) theme."
+    },
+    {
+      "type": "range",
+      "id": "delay_ms",
+      "label": "Delay before opening (ms)",
+      "min": 100,
+      "max": 3000,
+      "step": 100,
+      "default": 500
+    }
+  ]
+}
+{% endschema %}

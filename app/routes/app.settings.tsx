@@ -128,6 +128,48 @@ export default function Settings() {
                 <TextField label="Default 3-pack discount code" value={brand.discountDefaults.threePack} onChange={(v) => set({ discountDefaults: { ...brand.discountDefaults, threePack: v } })} autoComplete="off" />
               </div>
               <Divider />
+              <Text as="h2" variant="headingMd">After add to cart</Text>
+              <Text as="p" tone="subdued" variant="bodySm">What happens when a visitor clicks a pricing-card button. Pages set to “Store default” follow this; a page can override it in its Commerce tab.</Text>
+              <div className="ib-kv">
+                <Select
+                  label="Default behaviour"
+                  options={[
+                    { label: "Add to cart, then go to a collection with the cart drawer open (encourages adding more products)", value: "collection" },
+                    { label: "Straight to checkout (cart permalink)", value: "checkout" },
+                    { label: "Add to cart, then open the cart page", value: "cart" },
+                  ]}
+                  value={brand.afterAddToCart.mode}
+                  onChange={(v) => set({ afterAddToCart: { ...brand.afterAddToCart, mode: v as any } })}
+                />
+                <TextField
+                  label="Collection to land on"
+                  value={brand.afterAddToCart.collectionHandle}
+                  onChange={(v) => set({ afterAddToCart: { ...brand.afterAddToCart, collectionHandle: v } })}
+                  autoComplete="off"
+                  prefix="/collections/"
+                  helpText="Collection handle, e.g. shop-all (the Shop All page)."
+                  disabled={brand.afterAddToCart.mode !== "collection"}
+                />
+              </div>
+              <Checkbox
+                label="Open the cart drawer when the visitor lands on the collection"
+                checked={brand.afterAddToCart.openCart}
+                onChange={(v) => set({ afterAddToCart: { ...brand.afterAddToCart, openCart: v } })}
+                disabled={brand.afterAddToCart.mode !== "collection"}
+                helpText="Adds ?cx_cart=open to the redirect. The theme opens its drawer through the app embed “Interstitial: open cart after add” — enable it once in Online Store → Themes → Customize → App embeds (see docs). Without it the visitor still lands on the collection with the items in the cart."
+              />
+              <Divider />
+              <Text as="h2" variant="headingMd">Store header</Text>
+              <Text as="p" tone="subdued" variant="bodySm">Interstitial pages are rendered inside your theme, so the store’s real announcement bar, header and footer always wrap them. You can hide the header (globally here, or per page in Page settings) to keep visitors focused on the offer — the footer always stays.</Text>
+              <Checkbox label="Show the store header on interstitial pages by default" checked={brand.showHeader !== false} onChange={(v) => set({ showHeader: v })} />
+              <TextField
+                label="Header CSS selectors (advanced — used only when the header is hidden)"
+                value={brand.headerSelectors}
+                onChange={(v) => set({ headerSelectors: v })}
+                autoComplete="off"
+                helpText="Comma-separated selectors of the theme's header group. Defaults match the Cellexia theme (announcement bar, header, ticker)."
+              />
+              <Divider />
               <Text as="h2" variant="headingMd">AI defaults</Text>
               <div className="ib-kv">
                 <Select label="Claude model" options={[{ label: "Claude Opus 5 (best quality)", value: "claude-opus-5" }, { label: "Claude Sonnet 5 (faster)", value: "claude-sonnet-5" }, { label: "Claude Haiku 4.5 (cheapest)", value: "claude-haiku-4-5" }]} value={brand.ai.claudeModel} onChange={(v) => set({ ai: { ...brand.ai, claudeModel: v } })} />

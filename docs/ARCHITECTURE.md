@@ -43,8 +43,7 @@ page-script.js  POST /a/go/_e {p,t,s,m,l,d,utm} ──────────�
 
 Admin (embedded)                          App
 editor edits ──debounce 900 ms──▶ POST /app/pages/:id intent=save → saveDraft (Page.draft)
-iframe GET /preview/:id?token=… ─────────▶ renderPage(mode:"preview", mockChrome, standalone)
-"Publish" ───────────────────────────────▶ publishPage → published snapshot + compiled Liquid
+iframe GET /preview/:id?token=… ─────────▶ renderPage(mode:"preview", "Publish" ───────────────────────────────▶ publishPage → published snapshot + compiled Liquid
 "Preview on store" GET /a/go/:slug?_preview=<token> ─▶ renderPage(draft, mode:"liquid", banner)
 ```
 
@@ -93,7 +92,7 @@ interface PageContent {
   version: 1;
   sections: SectionInstance[];          // { id, type, hidden?, data: Record<string, any> }
   commerce: CommerceSettings;           // productHandle, discountCode, discountEnabled,
-                                        // checkoutMode: "checkout"|"cart", utmPassthrough,
+                                        // checkoutMode: "default"|"collection"|"checkout"|"cart", utmPassthrough,
                                         // livePrices, marketOverrides: { [ISO]: MarketOverride }
   stickyBar: { enabled, text, buttonLabel, showAfterSectionIndex };
   seo: { title, description, noindex };
@@ -132,7 +131,7 @@ interface SectionDef {
 
 | type | Glow25 section mirrored | Notes |
 |---|---|---|
-| `announcement_bar` | top bar | singleton; reads brand `shippingLine`/`guaranteeShort` by default |
+| `announcement_bar` | optional promo strip (NOT seeded — the theme already has an announcement bar/header/footer) | singleton; reads brand `shippingLine`/`guaranteeShort` by default |
 | `hero` | listicle hero | singleton; eyebrow, H1, subhead, trust bar (` · `-split), CTA, badge strip, image |
 | `reason` | "1. / 2. / 3." numbered reasons | image above, numeral, H2, rich body, optional CTA |
 | `text_block` | "Here's why Cellexia works when everything else didn't" | tone/align, optional CTA |
@@ -182,8 +181,7 @@ Fields flagged `productSpecific: true` (hero headline/subhead/trust/image, reaso
 1. Builds a `RenderContext` (`mode: "liquid"|"preview"`, `brand`, `page`, `locales` = locales with ≥1 translation, `previewLocale/Market`, `storeRoot`, `proxyPath`, `eventsPath`).
 2. Renders each non-hidden section through `renderSection()` → `makeHelpers(ctx, section)` (`app/lib/sections/helpers.ts`) → `def.render(h)`. A throwing section becomes an HTML comment + warning instead of failing the page.
 3. Appends the **disclaimer** (always; `page.disclaimerOverride` or `brand.disclaimer`, translated), the **sticky mobile bar** (if enabled; trigger element = `cx-s-<id>` of the Nth visible non-announcement section) and inlines **CSS** (`pageCss(brand)` → `<style id="cx-css">`, everything namespaced under `#cx-page`/`.cx-*`, brand tokens as CSS variables `--cx-accent`, `--cx-ink`, `--cx-fh`…, full-bleed bands via `width:100vw;margin-left:calc(50% - 50vw)`) and **JS** (`pageScript(cfg)` → `<script id="cx-js">`, ~3 KB vanilla: carousels, sticky bar via IntersectionObserver, UTM capture into `sessionStorage.cx_utm`, analytics beacons, smooth-scroll for `#` CTAs).
-4. Wraps in `<div id="cx-page" data-cx-page data-cx-slug data-cx-locale data-cx-market>` plus `<meta name="robots" content="noindex,nofollow">` unless `seo.noindex === false`, and a `document.title` script when `seo.title` is set. Optional `banner` (draft preview), `mockChrome` (neutral header/footer for the admin iframe), `standalone` (full HTML document with the Typekit font link).
-5. Returns `{ html, bytes, warnings, sectionCount }` and adds size warnings in liquid mode.
+4. Wraps in `<div id="cx-page" data-cx-page data-cx-slug data-cx-locale data-cx-market>` plus `<meta name="robots" content="noindex,nofollow">` unless `seo.noindex === false`, and a `document.title` script when `seo.title` is set. Optional `banner` (draft preview), `5. Returns `{ html, bytes, warnings, sectionCount }` and adds size warnings in liquid mode.
 
 **Helpers** (`SectionHelpers`): `t(key, value)` translatable inline text, `rt()` translatable rich text (`richText()`: paragraphs, `**bold**`, `*italic*`, `- ` bullets), `e()` escape only, `img()` (`imgTag()`: srcset for `cdn.shopify.com` URLs via `?width=`, lazy/eager, visible placeholder box when empty), `cta()`, `cartHref()`, `band()`, `heading()`, `icons`.
 
@@ -203,16 +201,18 @@ Fields flagged `productSpecific: true` (hero headline/subhead/trust/image, reaso
 
 `app/lib/commerce/cart-links.ts` — `buildCartUrl({ ctx, items, cardIndex })` → `buildSingleUrl()`:
 
-| `checkoutMode` | URL |
+| `checkoutMode` (page) → `effectiveCheckoutMode(commerce, brand)` | URL |
 |---|---|
-| `"checkout"` (default) | cart permalink `{{ routes.cart_url }}/<variantId>:<qty>,<variantId>:<qty>[?discount=CODE]` → straight to checkout |
+| `"default"` (page default) | resolves to `brand.afterAddToCart.mode` (Settings → After add to cart; store default `"collection"`) |
+| `"collection"` (store default) | `{{ routes.cart_url }}/add?items[][id]=…&items[][quantity]=…&return_to={{ routes.collections_url }}/<afterAddToCart.collectionHandle>[?cx_cart=open]` — adds, then lands on Shop All; `cx_cart=open` makes the app embed (`extensions/cellexia-interstitial-helpers/blocks/cart-opener.liquid`) click the theme's cart trigger so the drawer opens; with a code: `/discount/CODE?redirect=<addUrl with & → %26>` |
+| `"checkout"` | cart permalink `{{ routes.cart_url }}/<variantId>:<qty>,<variantId>:<qty>[?discount=CODE]` → straight to checkout |
 | `"cart"` (Glow25 chain) | `{{ routes.cart_url }}/add?items[][id]=…&items[][quantity]=…&return_to={{ routes.cart_url }}`; with a code: `/discount/CODE?redirect=<addUrl with & → %26>` (`/discount/` is a root-level route, not locale-prefixed) |
 
-- `cardItems(card)` = main variant + `addOns[]` (e.g. the free towel); `numericVariantId()` accepts GIDs or numbers.
+- `cardItems(card)` = main variant + `addOns[]` (e.g. the free towel); `numericVariantId()` accepts GIDs or numbers. An add-on with `productHandle` becomes a guarded item: in Liquid mode the href is `{% if all_products['handle'].available %}<url with add-on>{% else %}<url without>{% endif %}` so an unpublished/out-of-stock gift never breaks the button (the towel product is currently not published to the Online Store — see HANDOVER-NOTES).
 - The discount code is applied only if `discountEnabled` and the code is not a `[placeholder]`.
 - Per-market: `discountCode`, `discountEnabled`, `cardVariantIds[cardIndex]` per ISO country → Liquid branches on `_c`; `hideCards` handled in the pricing renderer.
 - If a card has no valid variant its button falls back to `#cx-offer`.
-- **UTM → cart attributes** (`page-script.ts`): keys `utm_*`, `fbclid`, `gclid`, `ttclid`, `ref` are captured from the URL, persisted in `sessionStorage`, and on an add-to-cart click either appended as `attributes[k]=v` to the permalink (checkout mode) or POSTed to `/cart/update.js` before navigating (cart mode); non-`utm_` keys are prefixed `cx_`.
+- **UTM → cart attributes** (`page-script.ts`): keys `utm_*`, `fbclid`, `gclid`, `ttclid`, `ref` are captured from the URL, persisted in `sessionStorage`, and on an add-to-cart click either appended as `attributes[k]=v` to the permalink (checkout mode) or POSTed to `/cart/update.js` before navigating (collection/cart modes; the button carries `data-cx-mode`); non-`utm_` keys are prefixed `cx_`.
 - **Discount code check**: `app/routes/api.products.tsx` `checkDiscount` → `codeDiscountNodeByCode` (Admin GraphQL) surfaced as "Check in Shopify" in `CommercePanel`. Products/variants come from App Bridge `resourcePicker` when embedded, otherwise `byHandle`/`search` queries.
 
 ---
@@ -294,7 +294,7 @@ All server-only, under `app/lib/integrations/`. Keys come from `getSettings(shop
 
 ## 10. Seeding
 
-`app/lib/seed/seed.server.ts` + `seed/pages/{crepey-skin,jawline,dark-spots}.ts` — three baseline pages transcribed from the copy docs (19 sections each, `announcement_bar → hero → reason×3 → text_block → purity → science → evidence → pillars → expert_quote → pricing → guarantee → comparison → timeline → testimonials → reviews → faq → final_cta`); Crepey Skin is `isTemplate: true`.
+`app/lib/seed/seed.server.ts` + `seed/pages/{crepey-skin,jawline,dark-spots}.ts` — three baseline pages transcribed from the copy docs (18 sections each, `hero → reason×3 → text_block → purity → science → evidence → pillars → expert_quote → pricing → guarantee → comparison → timeline → testimonials → reviews → faq → final_cta`); Crepey Skin is `isTemplate: true`.
 
 - Image references are `seed:<file>` strings; `collectSeedRefs()` finds them, `resolveSeedAssets()` uploads `public/seed/*.jpg` and `public/builder/*.svg` to Shopify Files (using the passed admin client or `unauthenticated.admin(shop)`), falling back to app-hosted URLs (`${SHOPIFY_APP_URL}/seed/…`), and `replaceSeedRefs()` rewrites the content. Assets are registered as `ImageAsset(source: "seed")`; `award-seal.svg` becomes `brand.awardSealUrl`.
 - `ensureSeeded(shop, { admin?, force? })` is idempotent via `ShopSettings.seedVersion >= SEED_VERSION` (currently `1`). It runs from the `afterAuth` hook (`app/shopify.server.ts`), from `app._index` when `seededAt` is null, from Settings → "Re-seed baseline pages" (`force: true` overwrites the three drafts) and from `npm run seed -- <shop> [--force]`.
@@ -339,3 +339,10 @@ All server-only, under `app/lib/integrations/`. Keys come from `getSettings(shop
 - Dev mode (`BUILDER_DEV_SHOP`) has no Admin API: pickers, uploads and re-hosting degrade to prompts / `data:` URLs; never enable it in production (it is guarded by `NODE_ENV`).
 - Secrets are only as safe as `SESSION_SECRET`; rotating it invalidates stored keys (they decrypt to `""` and fall back to env).
 - Section-copy generation and translations return **suggestions**; bracketed placeholders are deliberately preserved and must be filled by a human before publishing.
+
+## Store header/footer, header hide, previews
+
+- On the storefront the app-proxy response is wrapped by `theme.liquid`, so the theme's real announcement bar, header, footer and cart drawer are always present — the app never renders its own chrome.
+- **Header hide** (`PageContent.header`: `default|show|hide`; `BrandSettings.showHeader` default `true`; `BrandSettings.headerSelectors`): `renderPage()` emits `<style id="cx-hide-header">{selectors}{display:none!important}</style>` inside `#cx-page` when hidden (per page, or globally unless the page forces "show"). Same output in liquid and preview modes.
+- **Previews** (`app/routes/preview.$id.tsx`, `scripts/render-previews.ts`): the store cannot be iframed (`X-Frame-Options: DENY`), so `app/lib/render/theme-shell.server.ts` fetches the store homepage (15-min cache), keeps `<head>` stylesheets/inline styles/viewport meta, the `<body>` attributes and everything outside `<main>` (scripts, `on*` handlers, preload hints stripped; root-relative URLs re-pointed at the store), and `wrapInThemeShell()` places the rendered page inside `<main id="main">`. A tiny inline script re-creates the theme's `main{padding-top}` offset for its fixed header wrapper. `?shell=0` on the preview URL disables the wrapper; offline it falls back to a plain document.
+- **Theme app extension** `extensions/cellexia-interstitial-helpers` (`type = "theme"`, app embed block, target `body`) — deployed with `shopify app deploy`, enabled in the theme editor → App embeds. Runs only when the URL has `?cx_cart=open`: clicks the first visible element matching the configured selector (default `button.icon--cart, [data-cart-toggle], a[href$="/cart"]`), retrying up to 12× every `delay_ms`, then removes the parameter from the URL. Works on vintage themes because app embeds are injected through `content_for_header`.

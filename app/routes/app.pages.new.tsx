@@ -239,7 +239,7 @@ export default function NewPageWizard() {
                 <div style={{ flex: 1 }}><TextField label="Discount code" value={c.commerce.discountCode} onChange={(v) => setCommerce({ discountCode: v.toUpperCase().trim() })} autoComplete="off" placeholder="e.g. NECK20" /></div>
                 {data.discountDefaults.threePack && <Button onClick={() => setCommerce({ discountCode: data.discountDefaults.threePack })}>Use default “{data.discountDefaults.threePack}”</Button>}
               </InlineStack>
-              <Select label="Add-to-cart behaviour" options={[{ label: "Straight to checkout (cart permalink)", value: "checkout" }, { label: "Add to cart, open cart page", value: "cart" }]} value={c.commerce.checkoutMode} onChange={(v) => setCommerce({ checkoutMode: v as any })} />
+              <Select label="Add-to-cart behaviour" options={[{ label: "Store default (Settings → After add to cart)", value: "default" }, { label: "Add to cart → collection (Shop All) with cart drawer open", value: "collection" }, { label: "Straight to checkout (cart permalink)", value: "checkout" }, { label: "Add to cart, open cart page", value: "cart" }]} value={c.commerce.checkoutMode || "default"} onChange={(v) => setCommerce({ checkoutMode: v as any })} />
             </BlockStack>
           </Card>
         )}

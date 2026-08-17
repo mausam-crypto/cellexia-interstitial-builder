@@ -178,6 +178,17 @@ export function PageSettingsPanel({
         <TextField label="Browser title" value={content.seo.title} onChange={(v) => onContent({ ...content, seo: { ...content.seo, title: v } })} autoComplete="off" />
         <TextField label="Meta description" value={content.seo.description} onChange={(v) => onContent({ ...content, seo: { ...content.seo, description: v } })} autoComplete="off" multiline={2} />
         <Checkbox label="Hide from search engines (noindex) — recommended for paid-traffic pages" checked={content.seo.noindex !== false} onChange={(v) => onContent({ ...content, seo: { ...content.seo, noindex: v } })} />
+        <Select
+          label="Store header on this page"
+          options={[
+            { label: "Store default (Settings → Store header; shown by default)", value: "default" },
+            { label: "Show the store header", value: "show" },
+            { label: "Hide the store header (footer stays)", value: "hide" },
+          ]}
+          value={content.header || "default"}
+          onChange={(v) => onContent({ ...content, header: v as any })}
+          helpText="The theme's real announcement bar, header and footer wrap every interstitial page. Hiding the header keeps visitors focused on the offer."
+        />
         <Text as="h4" variant="headingSm">Sticky mobile CTA bar</Text>
         <Checkbox label="Show sticky bar on mobile" checked={content.stickyBar.enabled} onChange={(v) => onContent({ ...content, stickyBar: { ...content.stickyBar, enabled: v } })} />
         <TextField label="Bar text" value={content.stickyBar.text} onChange={(v) => onContent({ ...content, stickyBar: { ...content.stickyBar, text: v } })} autoComplete="off" helpText="Stars are added automatically before the text." />
@@ -311,11 +322,14 @@ export function CommercePanel({
                     <div style={{ flex: 1 }}>
                       <TextField label="Label" labelHidden value={a.label || ""} onChange={(v) => setCard(i, { addOns: cd.addOns.map((x: any, j: number) => (j === k ? { ...x, label: v } : x)) })} autoComplete="off" placeholder="Label (info)" />
                     </div>
+                    <div style={{ flex: 1 }}>
+                      <TextField label="Product handle" labelHidden value={a.productHandle || ""} onChange={(v) => setCard(i, { addOns: cd.addOns.map((x: any, j: number) => (j === k ? { ...x, productHandle: v.trim() } : x)) })} autoComplete="off" placeholder="Product handle (safety)" helpText={k === 0 ? "With a handle, the gift is only added when it's published to the Online Store & in stock — the button never breaks." : undefined} />
+                    </div>
                     <Button size="slim" tone="critical" variant="plain" onClick={() => setCard(i, { addOns: cd.addOns.filter((_: any, j: number) => j !== k) })}>✕</Button>
                   </InlineStack>
                 ))}
                 <div style={{ marginTop: 6 }}>
-                  <Button size="slim" onClick={() => setCard(i, { addOns: [...(cd.addOns || []), { variantId: "", quantity: 1, label: "" }] })}>+ Add gift / add-on</Button>
+                  <Button size="slim" onClick={() => setCard(i, { addOns: [...(cd.addOns || []), { variantId: "", quantity: 1, label: "", productHandle: "" }] })}>+ Add gift / add-on</Button>
                 </div>
               </div>
             </BlockStack>
@@ -355,10 +369,12 @@ export function CommercePanel({
         <Select
           label="Add-to-cart button behaviour"
           options={[
+            { label: "Store default (Settings → After add to cart)", value: "default" },
+            { label: "Add to cart → collection (Shop All) with the cart drawer open", value: "collection" },
             { label: "Straight to checkout (cart permalink /cart/VARIANT:QTY?discount=CODE)", value: "checkout" },
             { label: "Add to cart and open the cart page (/discount → /cart/add → /cart)", value: "cart" },
           ]}
-          value={c.checkoutMode}
+          value={c.checkoutMode || "default"}
           onChange={(v) => setCommerce({ checkoutMode: v as any })}
         />
         <Checkbox label="Carry UTM / click-id parameters into the cart as attributes (attribution)" checked={c.utmPassthrough} onChange={(v) => setCommerce({ utmPassthrough: v })} />

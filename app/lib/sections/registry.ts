@@ -19,7 +19,7 @@ import {
   brandString,
   type SectionHelpers,
 } from "./helpers";
-import { cardItems, numericVariantId } from "../commerce/cart-links";
+import { cardItems, numericVariantId, effectiveCheckoutMode } from "../commerce/cart-links";
 
 export interface SectionDef {
   type: string;
@@ -68,8 +68,8 @@ const IMAGE_STYLE_HINT =
 
 const announcement_bar: SectionDef = {
   type: "announcement_bar",
-  label: "Announcement bar",
-  description: "Thin bar at the top of the page: shipping + guarantee promise. Reads the global brand strings by default.",
+  label: "Promo strip (optional)",
+  description: "Optional promo strip. NOTE: your theme already shows the store's own announcement bar and header around every page — only add this for a page-specific message.",
   icon: "📣",
   category: "top",
   singleton: true,
@@ -521,7 +521,7 @@ const pricing: SectionDef = {
     <div class="cx-price">${priceBlock}</div>
     ${c.description ? `<p class="cx-card__desc">${itemT(h, "cards", i, "description", c.description)}</p>` : ""}
     ${gift}
-    <a class="${brand.ctaStyle === "ink" ? "cx-btn cx-btn--ink" : "cx-btn cx-btn--accent"} cx-btn--block cx-card__btn" href="${href}" data-cx-event="add_to_cart" data-cx-card="${i}" data-cx-cart-link data-cx-mode="${h.e(commerce.checkoutMode)}">${itemT(h, "cards", i, "buttonLabel", c.buttonLabel || "Add to cart")}</a>
+    <a class="${brand.ctaStyle === "ink" ? "cx-btn cx-btn--ink" : "cx-btn cx-btn--accent"} cx-btn--block cx-card__btn" href="${href}" data-cx-event="add_to_cart" data-cx-card="${i}" data-cx-cart-link data-cx-mode="${h.e(effectiveCheckoutMode(commerce, brand))}">${itemT(h, "cards", i, "buttonLabel", c.buttonLabel || "Add to cart")}</a>
     <ul class="cx-card__checks">${checks}${defaultChecks}</ul>
   </div>
 </li>`);

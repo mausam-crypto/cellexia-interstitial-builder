@@ -363,7 +363,7 @@ export default function PageEditor() {
             <iframe key={previewKey} title="Preview" src={previewUrl} />
           </div>
           <div style={{ padding: "6px 10px", fontSize: 12, color: "#6d7175" }}>
-            Preview uses a neutral stand-in header/footer and the manual prices. “Preview on store” shows the draft inside your real theme with live prices.
+            The preview is wrapped in your store’s real announcement bar, header and footer (fetched from the live theme, visual only) and shows the manual prices. “Preview on store” shows the real thing, with live prices and a working cart.
           </div>
         </div>
       </div>

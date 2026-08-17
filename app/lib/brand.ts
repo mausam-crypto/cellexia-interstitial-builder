@@ -33,6 +33,9 @@ export const DEFAULT_BRAND: BrandSettings = {
     imageStyle:
       "unretouched, realistic skin texture appropriate for age, natural light, candid phone-photo feel, no text, no logos, no watermark",
   },
+  showHeader: true,
+  headerSelectors: "#shopify-section-header, #shopify-section-alert-bar, #shopify-section-ticker, #shopify-section-announcement-bar, .site-header, .header-wrapper",
+  afterAddToCart: { mode: "collection", collectionHandle: "shop-all", openCart: true },
   discountDefaults: { twoPack: "", threePack: "" },
 };
 
@@ -43,6 +46,7 @@ export function mergeBrand(partial?: Partial<BrandSettings> | null): BrandSettin
     ...p,
     ai: { ...DEFAULT_BRAND.ai, ...(p.ai || {}) },
     discountDefaults: { ...DEFAULT_BRAND.discountDefaults, ...(p.discountDefaults || {}) },
+    afterAddToCart: { ...DEFAULT_BRAND.afterAddToCart, ...(p.afterAddToCart || {}) },
     translations: p.translations || {},
     paymentIcons: p.paymentIcons || DEFAULT_BRAND.paymentIcons,
   };
@@ -54,7 +58,7 @@ export const DEFAULT_COMMERCE: CommerceSettings = {
   productId: "",
   discountCode: "",
   discountEnabled: false,
-  checkoutMode: "checkout",
+  checkoutMode: "default",
   utmPassthrough: true,
   livePrices: true,
   marketOverrides: {},

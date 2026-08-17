@@ -11,6 +11,7 @@ import { getSettings } from "../lib/pages.server";
 import { normalizePage } from "../lib/brand";
 import { renderPage } from "../lib/render/render-page";
 import { safeJson } from "../lib/pages.server";
+import { getThemeShell, wrapInThemeShell } from "../lib/render/theme-shell.server";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -30,11 +31,11 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     previewMarket: url.searchParams.get("market") || undefined,
     storeRoot: brand.storeUrl || "",
     proxyPath: defaults.proxyPrefix,
-    mockChrome: url.searchParams.get("chrome") !== "0",
-    standalone: true,
-    banner: version === "draft" ? undefined : undefined,
   });
-  return new Response(rendered.html, {
+  // Wrap in the store's real theme header/footer (fetched from the live storefront, cached), unless ?shell=0.
+  const shell = url.searchParams.get("shell") === "0" ? null : await getThemeShell(brand.storeUrl || "");
+  const html = wrapInThemeShell(rendered.html, shell, { title: content.seo?.title || row.title });
+  return new Response(html, {
     headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Robots-Tag": "noindex" },
   });
 };

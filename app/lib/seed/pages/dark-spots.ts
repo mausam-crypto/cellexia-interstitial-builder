@@ -32,14 +32,13 @@ export const DARK_SPOTS_SEED: { slug: string; title: string; productHandle: stri
       productId: "gid://shopify/Product/15422184718711",
       discountCode: "SPOTS20",
       discountEnabled: false,
-      checkoutMode: "checkout",
+      checkoutMode: "default",
       utmPassthrough: true,
       livePrices: true,
       marketOverrides: {},
     },
     stickyBar: { enabled: true, text: "★★★★★ [12,000]+ reviews", buttonLabel: CTA, showAfterSectionIndex: 0 },
     sections: [
-      { id: "s00_announce", type: "announcement_bar", data: { useBrandStrings: true, text: "Free express shipping on every order · 60-day money-back guarantee", tone: "ink" } },
       {
         id: "s01_hero",
         type: "hero",
@@ -242,7 +241,7 @@ export const DARK_SPOTS_SEED: { slug: string; title: string; productHandle: stri
               variantId: "56912236118391",
               variantTitle: "3 Tubes - 20% Off",
               quantity: 1,
-              addOns: [{ variantId: "55089188438391", quantity: 1, label: "Bamboo Beauty Towel — FreeGift (SKU 600007)" }],
+              addOns: [{ variantId: "55089188438391", quantity: 1, label: "Bamboo Beauty Towel — FreeGift (SKU 600007)", productHandle: "bamboo-beauty-towel" }],
             },
             {
               title: "2 Tubes",

@@ -22,7 +22,7 @@ send('view');
 root.addEventListener('click',function(ev){var a=ev.target.closest&&ev.target.closest('a[data-cx-event]');if(!a)return;var type=a.getAttribute('data-cx-event');var card=a.getAttribute('data-cx-card');var href=a.getAttribute('href')||'';
 if(type==='add_to_cart'){send('card_click',{c:card!=null?Number(card):null});send('add_to_cart',{c:card!=null?Number(card):null});
 if(CFG.utm&&Object.keys(utm).length){var attrs={};for(var k in utm){attrs[k.indexOf('utm_')===0?k:'cx_'+k]=utm[k]}
-if(a.getAttribute('data-cx-mode')==='cart'){ev.preventDefault();var done=false;var go=function(){if(done)return;done=true;location.href=href};try{fetch('/cart/update.js',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({attributes:attrs})}).then(go,go);setTimeout(go,900)}catch(e){go()}return}
+if(a.getAttribute('data-cx-mode')!=='checkout'){ev.preventDefault();var done=false;var go=function(){if(done)return;done=true;location.href=href};try{fetch('/cart/update.js',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({attributes:attrs})}).then(go,go);setTimeout(go,900)}catch(e){go()}return}
 else{try{var u=new URL(href,location.href);for(var k2 in attrs){u.searchParams.set('attributes['+k2+']',attrs[k2])}a.setAttribute('href',u.pathname+u.search)}catch(e){}}}
 return}
 send(type,{c:card!=null?Number(card):null,sec:a.getAttribute('data-cx-section')||null});
