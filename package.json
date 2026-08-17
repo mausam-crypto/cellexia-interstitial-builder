@@ -1,0 +1,61 @@
+{
+  "name": "cellexia-interstitial-builder",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Cellexia Interstitial Page Builder — a custom Shopify app that lets the team build, duplicate and publish native-ads interstitial pages (Glow25-style section library) on cellexialabs.com.",
+  "type": "module",
+  "scripts": {
+    "build": "react-router build",
+    "dev": "shopify app dev",
+    "config:link": "shopify app config link",
+    "generate": "shopify app generate",
+    "deploy": "shopify app deploy",
+    "config:use": "shopify app config use",
+    "env": "shopify app env",
+    "start": "react-router-serve ./build/server/index.js",
+    "docker-start": "npm run setup && npm run start",
+    "setup": "prisma generate && prisma migrate deploy",
+    "typecheck": "react-router typegen && tsc --noEmit",
+    "test": "vitest run",
+    "preview:static": "tsx scripts/render-previews.ts",
+    "size:check": "tsx scripts/size-check.ts",
+    "verify:duplicate": "tsx scripts/verify-duplication.ts",
+    "prisma": "prisma",
+    "seed": "tsx scripts/seed-cli.ts",
+    "dev:local": "react-router dev"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.117.1",
+    "@prisma/client": "^6.19.0",
+    "@react-router/fs-routes": "^7.18.2",
+    "@react-router/node": "^7.18.2",
+    "@react-router/serve": "^7.18.2",
+    "@shopify/app-bridge-react": "^4.2.12",
+    "@shopify/polaris": "^13.9.5",
+    "@shopify/shopify-app-react-router": "^2.0.0",
+    "@shopify/shopify-app-session-storage-prisma": "^10.0.0",
+    "isbot": "^5.1.0",
+    "prisma": "^6.19.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router": "^7.18.2"
+  },
+  "devDependencies": {
+    "@react-router/dev": "^7.18.2",
+    "@types/node": "^22.10.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "liquidjs": "^10.29.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vite": "^6.3.5",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=20.10"
+  },
+  "workspaces": [
+    "extensions/*"
+  ]
+}

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" width="1200" height="675" role="img" aria-label="Wrinkles are surface cracks; sagging is a weakened frame — reinforce the frame">
+  <rect width="1200" height="675" fill="#FFFFFF"/>
+  <g font-family="Inter, Arial, sans-serif" fill="#1D1D1B">
+    <text x="140" y="90" font-size="14" font-weight="700" letter-spacing="2.5" fill="#8A3B45">WHAT ANTI-WRINKLE CREAMS TREAT</text>
+    <text x="140" y="126" font-size="26" font-weight="700">Surface cracks</text>
+    <text x="700" y="90" font-size="14" font-weight="700" letter-spacing="2.5" fill="#2F6B4F">WHAT SAGGING NEEDS</text>
+    <text x="700" y="126" font-size="26" font-weight="700">A reinforced frame</text>
+  </g>
+  <g transform="translate(120 160)">
+    <rect x="30" y="140" width="380" height="270" fill="#F7F6F3" stroke="#D0CEC7" stroke-width="3"/>
+    <path d="M10 150 L220 20 L430 150" fill="none" stroke="#D0CEC7" stroke-width="6" stroke-linejoin="round"/>
+    <g stroke="#C9A29A" stroke-width="7" fill="none" stroke-linecap="round" opacity=".9">
+      <path d="M90 410 C80 330 110 250 90 150"/><path d="M220 410 C205 330 235 250 220 150"/><path d="M350 410 C340 330 365 250 350 150"/>
+      <path d="M40 260 C120 285 300 240 400 268"/>
+    </g>
+    <g stroke="#8A3B45" stroke-width="2.5" fill="none">
+      <path d="M140 200 l12 22 -8 18 14 20"/><path d="M280 300 l10 18 -6 14 12 16"/><path d="M180 350 l9 14 -5 12 10 14"/>
+    </g>
+    <text x="220" y="450" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="16" fill="#555">Repainting the walls doesn't fix a sagging frame</text>
+  </g>
+  <g transform="translate(680 160)">
+    <rect x="30" y="140" width="380" height="270" fill="#EEF4FA" stroke="#B1CDED" stroke-width="3"/>
+    <path d="M10 150 L220 20 L430 150" fill="none" stroke="#1D1D1B" stroke-width="6" stroke-linejoin="round"/>
+    <g stroke="#1D1D1B" stroke-width="7" fill="none" stroke-linecap="round">
+      <path d="M90 410 V150"/><path d="M220 410 V150"/><path d="M350 410 V150"/><path d="M40 260 H400"/>
+    </g>
+    <g stroke="#2F6B4F" stroke-width="4" fill="none" stroke-linecap="round" opacity=".9">
+      <path d="M90 150 L220 260 L350 150"/><path d="M90 410 L220 260 L350 410"/>
+    </g>
+    <text x="220" y="450" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="16" fill="#555">Tension at the surface + firmness rebuilt underneath</text>
+  </g>
+</svg>

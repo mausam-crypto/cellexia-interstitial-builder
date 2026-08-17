@@ -1,0 +1,110 @@
+// Cellexia Interstitial Page Builder — data model
+//
+// Dev/local: SQLite (file:./dev.sqlite). Production: switch provider to
+// "postgresql" and set DATABASE_URL — no other changes are needed (all JSON
+// columns are stored as strings and (de)serialised in app/lib/db.server.ts).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// Shopify OAuth sessions (managed by @shopify/shopify-app-session-storage-prisma)
+model Session {
+  id            String    @id
+  shop          String
+  state         String
+  isOnline      Boolean   @default(false)
+  scope         String?
+  expires       DateTime?
+  accessToken   String
+  userId        BigInt?
+  firstName     String?
+  lastName      String?
+  email         String?
+  accountOwner  Boolean   @default(false)
+  locale        String?
+  collaborator  Boolean?  @default(false)
+  emailVerified Boolean?  @default(false)
+  refreshToken  String?
+  refreshTokenExpires DateTime?
+}
+
+/// One row per shop: global brand settings + integration keys + seed state.
+model ShopSettings {
+  shop        String   @id
+  brand       String   @default("{}") // JSON: BrandSettings
+  secrets     String   @default("{}") // JSON: encrypted API keys {anthropic, deepl, higgsfield...}
+  defaults    String   @default("{}") // JSON: default discount codes per pack size, checkout mode, etc.
+  seededAt    DateTime?
+  seedVersion Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+/// An interstitial page. `draft` is what the editor works on; `published` is the
+/// frozen snapshot served at /a/go/<slug>. `compiled` caches the rendered Liquid.
+model Page {
+  id            String    @id @default(cuid())
+  shop          String
+  slug          String
+  title         String
+  productHandle String?
+  productTitle  String?
+  isTemplate    Boolean   @default(false)
+  status        String    @default("draft") // draft | published | archived
+  draft         String    @default("{}")    // JSON: PageContent
+  published     String?                     // JSON: PageContent snapshot
+  compiled      String?                     // cached Liquid for the published snapshot
+  compiledAt    DateTime?
+  previewToken  String    @default(cuid())
+  hasUnpublishedChanges Boolean @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  publishedAt   DateTime?
+  events        Event[]
+
+  @@unique([shop, slug])
+  @@index([shop, status])
+}
+
+/// Lightweight first-party analytics (visits, CTA clicks, pricing-card clicks, add-to-carts).
+model Event {
+  id        String   @id @default(cuid())
+  shop      String
+  pageId    String
+  page      Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  type      String   // view | cta_click | card_click | add_to_cart
+  sessionId String?
+  cardIndex Int?
+  market    String?
+  locale    String?
+  utmSource String?
+  utmMedium String?
+  utmCampaign String?
+  referrer  String?
+  device    String?  // mobile | desktop
+  createdAt DateTime @default(now())
+
+  @@index([shop, pageId, createdAt])
+  @@index([pageId, type])
+}
+
+/// Images uploaded/generated through the app (so the editor can offer a library).
+model ImageAsset {
+  id        String   @id @default(cuid())
+  shop      String
+  url       String
+  source    String   // upload | higgsfield | claude-svg | cdn | seed
+  prompt    String?
+  alt       String?
+  width     Int?
+  height    Int?
+  createdAt DateTime @default(now())
+
+  @@index([shop, createdAt])
+}
