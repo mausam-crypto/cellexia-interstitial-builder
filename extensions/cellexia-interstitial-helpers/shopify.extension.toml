@@ -1,10 +1,11 @@
 # Theme app extension — works on vintage (non-OS 2.0) themes too, because it only
 # uses an *app embed block* (injected via content_for_header, no theme file edits).
 # After `shopify app deploy`, enable it once in: Online Store → Themes → Customize →
-# App embeds → "Interstitial: open cart after add".
+# App embeds → "Open cart after add".
 api_version = "2026-07"
 
 [[extensions]]
 type = "theme"
 name = "Cellexia interstitial helpers"
 handle = "cellexia-interstitial-helpers"
+uid = "af13e041-be01-19ae-4251-ffbb4628e3344b15f2aa"

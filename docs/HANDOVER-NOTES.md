@@ -37,7 +37,7 @@ Not verifiable from here (needs the app installed on the store): the real theme'
 9. **API keys** in Settings for AI copy/translation/images (Anthropic, DeepL, Higgsfield). Higgsfield keys come from cloud.higgsfield.ai.
 10. **Product images**: the 3-jar cards use lifestyle shots (IMG_3618 / IMG_3613) — replace with real bundle packshots when available.
 11. **Free gift towel is not purchasable on the storefront yet**: the "Bamboo Beauty Towels" product (variant 55089188438391, SKU 600007) is ACTIVE but **not published to the Online Store channel** (`publishedAt: null`; `/variants/55089188438391.js` → 404; adding it via `/cart/add` → "Cannot find variant"). Publish it to Online Store (Products → Bamboo Beauty Towels → Sales channels → Online Store) so the 3-pack really adds the gift. Until then the compiled pages **automatically leave the gift out** of the button (Liquid `all_products['bamboo-beauty-towel'].available` guard) so add-to-cart never breaks; the "free towel" copy on the cards would then over-promise — check before publishing.
-12. **Enable the app embed** "Interstitial: open cart after add" (Online Store → Themes → Customize → App embeds) after `shopify app deploy`, so the cart drawer opens on Shop All after an add-to-cart. Not required for the add/redirect itself.
+12. **Enable the app embed** "Open cart after add" (Online Store → Themes → Customize → App embeds) after `shopify app deploy`, so the cart drawer opens on Shop All after an add-to-cart. Not required for the add/redirect itself.
 
 ## Image manifest — what was reused vs generated
 

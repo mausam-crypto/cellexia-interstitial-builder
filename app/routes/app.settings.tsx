@@ -156,7 +156,7 @@ export default function Settings() {
                 checked={brand.afterAddToCart.openCart}
                 onChange={(v) => set({ afterAddToCart: { ...brand.afterAddToCart, openCart: v } })}
                 disabled={brand.afterAddToCart.mode !== "collection"}
-                helpText="Adds ?cx_cart=open to the redirect. The theme opens its drawer through the app embed “Interstitial: open cart after add” — enable it once in Online Store → Themes → Customize → App embeds (see docs). Without it the visitor still lands on the collection with the items in the cart."
+                helpText="Adds ?cx_cart=open to the redirect. The theme opens its drawer through the app embed “Open cart after add” — enable it once in Online Store → Themes → Customize → App embeds (see docs). Without it the visitor still lands on the collection with the items in the cart."
               />
               <Divider />
               <Text as="h2" variant="headingMd">Store header</Text>
