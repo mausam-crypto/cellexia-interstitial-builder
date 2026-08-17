@@ -30,6 +30,7 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run); else run();
 })();
 </script>
+{%- comment -%} Shopify limits: block "name" ≤ 25 characters, setting labels ≤ 70 — longer values make `shopify app deploy` fail. {%- endcomment -%}
 {% schema %}
 {
   "name": "Open cart after add",

@@ -6,6 +6,12 @@
  *  4. removes the test page again
  *
  *   BUILDER_DEV_SHOP=<shop> npx tsx scripts/verify-duplication.ts
+ *
+ * Note: it runs against DATABASE_URL. Prisma resolves a relative SQLite path
+ * (file:./dev.sqlite) relative to prisma/, i.e. prisma/dev.sqlite — not the project root.
+ * The seed only runs when the shop has never been seeded, so a leftover database from an
+ * older version keeps its old drafts; delete prisma/dev.sqlite (or `npm run seed -- <shop> --force`)
+ * for a genuinely fresh check.
  */
 import prisma from "../app/db.server";
 import { duplicatePage, getPage, getPageBySlug, saveDraft, deletePage, getSettings } from "../app/lib/pages.server";
@@ -15,6 +21,7 @@ import { renderPage } from "../app/lib/render/render-page";
 
 async function main() {
   const shop = process.env.BUILDER_DEV_SHOP || process.argv[2] || "cellexia-labs.myshopify.com";
+  console.log(`0. database ${process.env.DATABASE_URL || "(DATABASE_URL unset)"} · shop ${shop}`);
   await ensureSeeded(shop, { appUrl: "http://localhost:3000" });
   const template = await getPageBySlug(shop, "crepey-skin");
   const jawline = await getPageBySlug(shop, "jawline-ritual");
@@ -47,7 +54,9 @@ async function main() {
     ["no render warnings", out.warnings.length === 0],
     ["under 256 KB", out.bytes < 256 * 1024],
     ["headline is the jawline one", out.html.includes("jawlines look years younger")],
-    ["pricing sells jawline variants", out.html.includes("42739675037832:1,55089188438391:1")],
+    // 3-pack card = jawline 3-pack + free towel, in whichever add-to-cart mode is in effect
+    // (store default "collection"/"cart" → /cart/add?items[][id]=…; "checkout" → permalink ID:1,ID:1)
+    ["pricing sells jawline variants", /items\[\]\[id\]=42739675037832&items\[\]\[quantity\]=1&items\[\]\[id\]=55089188438391|42739675037832:1,55089188438391:1/.test(out.html)],
     ["shared guarantee carried over", out.html.includes("60-day money-back guarantee")],
     ["shared purity/pillars/disclaimer present", out.html.includes('id="cx-disclaimer"') && out.html.includes("Prize-winning science")],
     ["18 sections", out.sectionCount === 18],

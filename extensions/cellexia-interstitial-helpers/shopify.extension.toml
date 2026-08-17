@@ -2,6 +2,8 @@
 # uses an *app embed block* (injected via content_for_header, no theme file edits).
 # After `shopify app deploy`, enable it once in: Online Store → Themes → Customize →
 # App embeds → "Open cart after add".
+# NOTE: Shopify caps a theme block's schema "name" at 25 characters (longer names make
+# `shopify app deploy` fail with "Version couldn't be created") and setting labels at 70.
 api_version = "2026-07"
 
 [[extensions]]
