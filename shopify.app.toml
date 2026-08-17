@@ -5,10 +5,10 @@
 # `shopify app config link` (or `shopify app dev`) once the app is created in the
 # Partner Dashboard / Dev Dashboard for the Cellexia Labs store.
 
-client_id = "REPLACE_WITH_CLIENT_ID"
+client_id = "189c6211f7b9853539926526cf5f51e6"
 name = "Cellexia Interstitial Builder"
 handle = "cellexia-interstitial-builder"
-application_url = "https://REPLACE_WITH_APP_URL"
+application_url = "https://cellexia-interstitial-builder.onrender.com"
 embedded = true
 
 [build]
@@ -35,16 +35,16 @@ scopes = "read_products,read_files,write_files,read_locales,read_markets,read_di
 
 [auth]
 redirect_urls = [
-  "https://REPLACE_WITH_APP_URL/auth/callback",
-  "https://REPLACE_WITH_APP_URL/auth/shopify/callback",
-  "https://REPLACE_WITH_APP_URL/api/auth/callback"
+  "https://cellexia-interstitial-builder.onrender.com/auth/callback",
+  "https://cellexia-interstitial-builder.onrender.com/auth/shopify/callback",
+  "https://cellexia-interstitial-builder.onrender.com/api/auth/callback"
 ]
 
 # The App Proxy is what makes pages render on the store's own domain, inside the
 # store's real theme layout (header + footer), on a legacy/vintage theme:
 #   https://cellexialabs.com/a/go/<page-slug>
 [app_proxy]
-url = "https://REPLACE_WITH_APP_URL/proxy"
+url = "https://cellexia-interstitial-builder.onrender.com/proxy"
 subpath = "go"
 prefix = "a"
 
