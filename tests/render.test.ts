@@ -57,24 +57,29 @@ describe("seed pages", () => {
         // pricing anchor exists
         expect(html).toContain('id="cx-offer"');
       });
-      it("wires the pricing cards to the doc's variant ids (+ free towel on the 3-pack)", () => {
+      it("wires the pricing cards to the doc's variant ids (no free gift on any card)", () => {
         const pricing = content.sections.find((s) => s.type === "pricing")!;
         const cards = pricing.data.cards;
         expect(cards).toHaveLength(3);
         expect(cards[1].highlight).toBe(true);
-        expect(cards[1].addOns[0].variantId).toBe("55089188438391");
+        for (const c of cards) {
+          expect(c.addOns || []).toEqual([]);
+          expect(c.giftLine || "").toBe("");
+          expect(c.giftImage).toBeUndefined();
+        }
+        expect(renderPage({ page: content, brand: DEFAULT_BRAND, pageId: "t", slug: seed.slug, mode: "liquid" }).html).not.toMatch(/towel|55089188438391/i);
         // Store default (Settings → After add to cart): add to cart → Shop All collection with the cart drawer open
         const html = renderPage({ page: content, brand: DEFAULT_BRAND, pageId: "t", slug: seed.slug, mode: "preview", storeRoot: "https://cellexialabs.com" }).html;
         const shopAll = "&return_to=https://cellexialabs.com/collections/shop-all?cx_cart=open\"";
         expect(html).toContain(`https://cellexialabs.com/cart/add?items[][id]=${cards[0].variantId}&items[][quantity]=1${shopAll}`);
-        expect(html).toContain(`https://cellexialabs.com/cart/add?items[][id]=${cards[1].variantId}&items[][quantity]=1&items[][id]=55089188438391&items[][quantity]=1${shopAll}`);
+        expect(html).toContain(`https://cellexialabs.com/cart/add?items[][id]=${cards[1].variantId}&items[][quantity]=1${shopAll}`);
         expect(html).toContain(`https://cellexialabs.com/cart/add?items[][id]=${cards[2].variantId}&items[][quantity]=1${shopAll}`);
         expect(html).toContain('data-cx-mode="collection"');
         // Page override: straight to checkout via cart permalink
         const checkout = { ...content, commerce: { ...content.commerce, checkoutMode: "checkout" as const } };
         const html2 = renderPage({ page: checkout, brand: DEFAULT_BRAND, pageId: "t", slug: seed.slug, mode: "preview", storeRoot: "https://cellexialabs.com" }).html;
         expect(html2).toContain(`https://cellexialabs.com/cart/${cards[0].variantId}:1"`);
-        expect(html2).toContain(`https://cellexialabs.com/cart/${cards[1].variantId}:1,55089188438391:1"`);
+        expect(html2).toContain(`https://cellexialabs.com/cart/${cards[1].variantId}:1"`);
         expect(html2).toContain(`https://cellexialabs.com/cart/${cards[2].variantId}:1"`);
         expect(html2).toContain('data-cx-mode="checkout"');
       });
@@ -224,7 +229,7 @@ describe("duplication", () => {
     expect(out.warnings).toEqual([]);
     expect(out.html).toContain("jawlines look years younger");
     expect(out.html).toContain("all_products['jawline-contour-tightening-cream']");
-    expect(out.html).toContain("items[][id]=42739675037832&items[][quantity]=1&items[][id]=55089188438391&items[][quantity]=1");
+    expect(out.html).toContain("items[][id]=42739675037832&items[][quantity]=1&return_to=");
     // shared elements carried over untouched
     expect(out.html).toContain("60-day money-back guarantee");
     expect(out.html).toContain("Formulated and made in Europe");
@@ -261,5 +266,31 @@ describe("theme shell (real store header/footer around previews)", () => {
     expect(doc.indexOf('id="cx-page"')).toBeLessThan(doc.indexOf("shopify-section-footer"));
     // no shell (offline) → plain standalone document
     expect(wrapInThemeShell("<div>x</div>", null, { title: "T" })).toContain("<!doctype html>");
+  });
+});
+
+describe("v2 migration: free gift removed from existing pages", () => {
+  it("strips the towel add-on, gift line/image and their translations; leaves everything else", async () => {
+    const { stripTowelGift, SEED_VERSION } = await import("../app/lib/seed/seed.server");
+    expect(SEED_VERSION).toBeGreaterThanOrEqual(2);
+    const page = seedContent("crepey-skin");
+    const pricing = page.sections.find((s) => s.type === "pricing")!;
+    // simulate a v1 page (as seeded before) + a translation of the gift line
+    pricing.data.cards[1].giftLine = "FREE gift: Bamboo Beauty Towel (worth €29) — this pack only";
+    pricing.data.cards[1].giftImage = { src: "https://cdn/Towel1.jpg", alt: "Bamboo Beauty Towel" };
+    pricing.data.cards[1].addOns = [{ variantId: "55089188438391", quantity: 1, label: "Bamboo Beauty Towel — FreeGift (SKU 600007)" }];
+    page.translations = { fr: { [`sections.${pricing.id}.cards.1.giftLine`]: "CADEAU : serviette", [`sections.${pricing.id}.heading`]: "Choisissez" } };
+    const { content, changed } = stripTowelGift(page);
+    expect(changed).toBe(true);
+    const c = content.sections.find((s) => s.type === "pricing")!.data.cards[1];
+    expect(c.addOns).toEqual([]);
+    expect(c.giftLine).toBe("");
+    expect(c.giftImage).toBeUndefined();
+    expect(c.variantId).toBe("42739679559816");
+    expect(content.translations.fr[`sections.${pricing.id}.cards.1.giftLine`]).toBeUndefined();
+    expect(content.translations.fr[`sections.${pricing.id}.heading`]).toBe("Choisissez");
+    // idempotent, and a clean v2 page is untouched
+    expect(stripTowelGift(content).changed).toBe(false);
+    expect(stripTowelGift(seedContent("jawline-ritual")).changed).toBe(false);
   });
 });

@@ -54,9 +54,9 @@ async function main() {
     ["no render warnings", out.warnings.length === 0],
     ["under 256 KB", out.bytes < 256 * 1024],
     ["headline is the jawline one", out.html.includes("jawlines look years younger")],
-    // 3-pack card = jawline 3-pack + free towel, in whichever add-to-cart mode is in effect
-    // (store default "collection"/"cart" → /cart/add?items[][id]=…; "checkout" → permalink ID:1,ID:1)
-    ["pricing sells jawline variants", /items\[\]\[id\]=42739675037832&items\[\]\[quantity\]=1&items\[\]\[id\]=55089188438391|42739675037832:1,55089188438391:1/.test(out.html)],
+    // 3-pack card = jawline 3-pack, in whichever add-to-cart mode is in effect
+    // (store default "collection"/"cart" → /cart/add?items[][id]=…; "checkout" → permalink ID:1)
+    ["pricing sells jawline variants", /items\[\]\[id\]=42739675037832&items\[\]\[quantity\]=1|\/42739675037832:1/.test(out.html) && !/towel|55089188438391/i.test(out.html)],
     ["shared guarantee carried over", out.html.includes("60-day money-back guarantee")],
     ["shared purity/pillars/disclaimer present", out.html.includes('id="cx-disclaimer"') && out.html.includes("Prize-winning science")],
     ["18 sections", out.sectionCount === 18],

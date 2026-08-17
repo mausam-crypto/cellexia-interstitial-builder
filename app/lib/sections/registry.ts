@@ -411,7 +411,7 @@ const pricingCardFields: FieldDef[] = [
   { key: "unitCount", label: "Units in this pack", type: "number", translatable: false },
   text("unitLabel", "Unit label", { placeholder: "jar" }),
   textarea("description", "Description line"),
-  text("giftLine", "Free gift line (optional)", { placeholder: "FREE gift: Bamboo Beauty Towel (worth €29) — this pack only" }),
+  text("giftLine", "Free gift line (optional)", { placeholder: "FREE gift: … (worth €29) — this pack only" }),
   img("giftImage", "Gift image (optional)", "Product photo of the gift", "1:1"),
   text("checks", "Checkmark lines", { help: "Separate with ' · ' (e.g. Free express shipping · 60-day money-back guarantee)" }),
   text("buttonLabel", "Button label"),

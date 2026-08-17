@@ -12,12 +12,71 @@ import prisma from "../../db.server";
 import { CREPEY_SKIN_SEED } from "./pages/crepey-skin";
 import { JAWLINE_SEED } from "./pages/jawline";
 import { DARK_SPOTS_SEED } from "./pages/dark-spots";
-import { DEFAULT_BRAND } from "../brand";
+import { DEFAULT_BRAND, normalizePage } from "../brand";
 import type { PageContent } from "../types";
-import { createPage, getSettings, saveBrand } from "../pages.server";
+import { createPage, getSettings, saveBrand, recompileAll, safeJson } from "../pages.server";
 import { uploadFileBuffer, mimeFromName } from "../integrations/shopify-files.server";
 
-export const SEED_VERSION = 1;
+/**
+ * Bump when existing shops need a data migration on next load (see migrateShopData):
+ *  1 — initial seed
+ *  2 — free gift (Bamboo Beauty Towel) removed from every interstitial (2026-08-17)
+ */
+export const SEED_VERSION = 2;
+
+/** Strip the towel free gift from a page: add-on line item, gift line/image, their translations. */
+export function stripTowelGift(content: PageContent): { content: PageContent; changed: boolean } {
+  let changed = false;
+  const isTowel = (v: any) =>
+    String(v?.variantId || "") === "55089188438391" || /bamboo-beauty-towel/i.test(String(v?.productHandle || "")) || /towel/i.test(String(v?.label || ""));
+  const c: PageContent = JSON.parse(JSON.stringify(content));
+  for (const sec of c.sections) {
+    if (sec.type !== "pricing" || !Array.isArray(sec.data?.cards)) continue;
+    sec.data.cards.forEach((card: any, i: number) => {
+      if (Array.isArray(card.addOns) && card.addOns.some(isTowel)) {
+        card.addOns = card.addOns.filter((a: any) => !isTowel(a));
+        changed = true;
+      }
+      if (/towel/i.test(String(card.giftLine || "")) || /towel/i.test(String(card.giftImage?.alt || card.giftImage?.src || ""))) {
+        card.giftLine = "";
+        delete card.giftImage;
+        changed = true;
+        for (const loc of Object.keys(c.translations || {})) {
+          const key = `sections.${sec.id}.cards.${i}.giftLine`;
+          if (c.translations[loc] && key in c.translations[loc]) {
+            delete c.translations[loc][key];
+            changed = true;
+          }
+        }
+      }
+    });
+  }
+  return { content: c, changed };
+}
+
+/** Data migrations for shops seeded with an older SEED_VERSION. Idempotent. */
+async function migrateShopData(shop: string, fromVersion: number, log: (m: string) => void) {
+  if (fromVersion < 2) {
+    // v2: no free gift on the interstitials — remove the towel from every page (draft + published), recompile.
+    const pages = await prisma.page.findMany({ where: { shop } });
+    let touched = 0;
+    for (const p of pages) {
+      const data: any = {};
+      const d = stripTowelGift(normalizePage(safeJson(p.draft)));
+      if (d.changed) data.draft = JSON.stringify(d.content);
+      if (p.published) {
+        const pub = stripTowelGift(normalizePage(safeJson(p.published)));
+        if (pub.changed) data.published = JSON.stringify(pub.content);
+      }
+      if (Object.keys(data).length) {
+        await prisma.page.update({ where: { id: p.id }, data });
+        touched++;
+      }
+    }
+    if (touched) await recompileAll(shop);
+    log(`migration v2: removed the free-gift towel from ${touched} page(s)`);
+  }
+}
 
 export interface SeedDef {
   slug: string;
@@ -93,6 +152,7 @@ export async function ensureSeeded(shop: string, opts: { admin?: Admin; appUrl?:
   const log = opts.log || ((m: string) => console.log(`[seed:${shop}] ${m}`));
   const settings = await getSettings(shop);
   if (settings.seedVersion >= SEED_VERSION && !opts.force) return { seeded: false, pages: [] as string[] };
+  if (settings.seedVersion > 0 && settings.seedVersion < SEED_VERSION) await migrateShopData(shop, settings.seedVersion, log);
 
   const appUrl = opts.appUrl || process.env.SHOPIFY_APP_URL || "";
   let admin: Admin = opts.admin || null;

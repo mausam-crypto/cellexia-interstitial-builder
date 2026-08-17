@@ -208,7 +208,7 @@ Fields flagged `productSpecific: true` (hero headline/subhead/trust/image, reaso
 | `"checkout"` | cart permalink `{{ routes.cart_url }}/<variantId>:<qty>,<variantId>:<qty>[?discount=CODE]` → straight to checkout |
 | `"cart"` (Glow25 chain) | `{{ routes.cart_url }}/add?items[][id]=…&items[][quantity]=…&return_to={{ routes.cart_url }}`; with a code: `/discount/CODE?redirect=<addUrl with & → %26>` (`/discount/` is a root-level route, not locale-prefixed) |
 
-- `cardItems(card)` = main variant + `addOns[]` (e.g. the free towel); `numericVariantId()` accepts GIDs or numbers. An add-on with `productHandle` becomes a guarded item: in Liquid mode the href is `{% if all_products['handle'].available %}<url with add-on>{% else %}<url without>{% endif %}` so an unpublished/out-of-stock gift never breaks the button (the towel product is currently not published to the Online Store — see HANDOVER-NOTES).
+- `cardItems(card)` = main variant + `addOns[]` (optional; the seeds ship none — the free towel was removed on 2026-08-17 and `seed.server.ts` `stripTowelGift()` / `SEED_VERSION` 2 removes it from existing stores on the next load); `numericVariantId()` accepts GIDs or numbers. An add-on with `productHandle` becomes a guarded item: in Liquid mode the href is `{% if all_products['handle'].available %}<url with add-on>{% else %}<url without>{% endif %}` so an unpublished/out-of-stock add-on never breaks the button.
 - The discount code is applied only if `discountEnabled` and the code is not a `[placeholder]`.
 - Per-market: `discountCode`, `discountEnabled`, `cardVariantIds[cardIndex]` per ISO country → Liquid branches on `_c`; `hideCards` handled in the pricing renderer.
 - If a card has no valid variant its button falls back to `#cx-offer`.

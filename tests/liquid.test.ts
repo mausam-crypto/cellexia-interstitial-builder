@@ -34,7 +34,7 @@ const shopGlobals = (overrides: any = {}) => ({
         { id: 42739679559816, price: 13680, compare_at_price: 17100 },
       ],
     },
-    "bamboo-beauty-towel": { available: true, variants: [{ id: 55089188438391, price: 0, compare_at_price: null }] },
+    "gift-product": { available: true, variants: [{ id: 999, price: 0, compare_at_price: null }] },
   },
   ...overrides,
 });
@@ -55,7 +55,8 @@ describe("compiled Liquid evaluates in a Liquid engine", () => {
     expect(html).toContain("€48.45 per jar");
     expect(html).toContain("You save €17.10 (15%)");
     // cart links use routes.cart_url / routes.collections_url (store default: add → Shop All with the drawer open)
-    expect(html).toContain('href="/cart/add?items[][id]=42739679559816&items[][quantity]=1&items[][id]=55089188438391&items[][quantity]=1&return_to=/collections/shop-all?cx_cart=open"');
+    expect(html).toContain('href="/cart/add?items[][id]=42739679559816&items[][quantity]=1&return_to=/collections/shop-all?cx_cart=open"');
+    expect(html).not.toMatch(/towel|55089188438391/i);
     expect(html).toContain('data-cx-locale="en"');
   });
   it("switches to French strings when the storefront locale is fr and to the market override for DE", async () => {
@@ -70,23 +71,25 @@ describe("compiled Liquid evaluates in a Liquid engine", () => {
     const fr = await engine().parseAndRender(out.html, shopGlobals({ request: { locale: { iso_code: "fr" } }, localization: { country: { iso_code: "DE" } }, routes: { cart_url: "/fr/cart", root_url: "/fr", collections_url: "/fr/collections" } }));
     expect(fr).toContain("3 raisons pour lesquelles…");
     expect(fr).toContain("Commander");
-    expect(fr).toContain('href="/fr/cart/42739679559816:1,55089188438391:1?discount=CREPE20DE"');
+    expect(fr).toContain('href="/fr/cart/42739679559816:1?discount=CREPE20DE"');
     const en = await engine().parseAndRender(out.html, shopGlobals());
     expect(en).toContain("3 reasons why thousands of women over 50");
     expect(en).toContain("?discount=CREPE20\"");
   });
-  it("drops the free gift from the button when its product is not published/available on the storefront", async () => {
+  it("an optional add-on with a product handle is dropped from the button when its product is not published/available", async () => {
     const page = content("crepey-skin");
+    const pricing = page.sections.find((s) => s.type === "pricing")!;
+    pricing.data.cards[1].addOns = [{ variantId: "999", quantity: 1, label: "Gift", productHandle: "gift-product" }];
     const out = renderPage({ page, brand: DEFAULT_BRAND, pageId: "p1", slug: "crepey-skin", mode: "liquid" });
-    expect(out.html).toContain("{% if all_products['bamboo-beauty-towel'].available %}");
+    expect(out.html).toContain("{% if all_products['gift-product'].available %}");
     const g = shopGlobals();
-    delete g.all_products["bamboo-beauty-towel"]; // unpublished → all_products[handle] is empty
+    delete g.all_products["gift-product"]; // unpublished → all_products[handle] is empty
     const html = await engine().parseAndRender(out.html, g);
     expect(html).toContain('href="/cart/add?items[][id]=42739679559816&items[][quantity]=1&return_to=/collections/shop-all?cx_cart=open"');
-    expect(html).not.toContain("55089188438391");
-    // published → gift included
+    expect(html).not.toContain("items[][id]=999");
+    // published → add-on included
     const html2 = await engine().parseAndRender(out.html, shopGlobals());
-    expect(html2).toContain("items[][id]=55089188438391");
+    expect(html2).toContain("items[][id]=42739679559816&items[][quantity]=1&items[][id]=999&items[][quantity]=1");
   });
   it("falls back to manual prices when the variant is not found in the product", async () => {
     const page = content("dark-spots");

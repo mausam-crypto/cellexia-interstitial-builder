@@ -9,7 +9,8 @@ Built 16 Aug 2026 against the live Cellexia Labs store data (product handles, va
 | All 20 section types render (preview + Liquid) | `npm test` → tests/render.test.ts | ✓ |
 | The 3 baseline pages have all 18 page sections in the copy-doc order (the theme supplies announcement bar/header/footer); placeholders `[12,000]`, `Dr. [FULL NAME]`, `[Lead author]` stay visible | tests | ✓ |
 | Every `<a>` on each page resolves to `#cx-offer`, the cart/checkout, `/discount/…`, or the cross-sell product — nothing else | tests | ✓ |
-| Pricing cards wire the doc's variant IDs; 3-pack adds the free Bamboo Beauty Towel (55089188438391), guarded by `all_products['bamboo-beauty-towel'].available` on the storefront | tests | ✓ |
+| Pricing cards wire the doc's variant IDs; **no free gift** on any card (towel removed 2026-08-17); optional add-ons with a product handle stay guarded by `all_products[handle].available` | tests | ✓ |
+| v2 data migration (`SEED_VERSION` 1 → 2): on the next app load every existing page (draft + published + compiled Liquid) has the towel add-on, gift line, gift image and their translations removed; idempotent | tests + simulated v1 store | ✓ |
 | Store default add-to-cart: `/cart/add?items[][id]=…&return_to=/collections/shop-all?cx_cart=open` (with code: `/discount/CODE?redirect=…`); page overrides "checkout" / "cart"; Settings change the default, the collection and the drawer flag | tests | ✓ |
 | Live store: GET `/cart/add?items[][id]=42686740791432&items[][quantity]=1&return_to=/collections/shop-all?cx_cart=open` → 302 to Shop All, item in `/cart.js`; the app-embed logic (click `button.icon--cart` when `?cx_cart=open`) opens the theme's mini-cart (`.mini-cart.is-open`) on the real Shop All page | curl + in-browser on cellexialabs.com | ✓ |
 | Store header shows by default; hidden per page (`header: "hide"`) or globally (Settings) via `<style id="cx-hide-header">`; forced "show" wins over the global hide | tests | ✓ |
@@ -36,7 +37,7 @@ Not verifiable from here (needs the app installed on the store): the real theme'
 8. **Cross-sell**: the Jawline page links "The Sculpt & Define Lift" which is a DRAFT product — activate it before publishing (or turn the cross-sell card off).
 9. **API keys** in Settings for AI copy/translation/images (Anthropic, DeepL, Higgsfield). Higgsfield keys come from cloud.higgsfield.ai.
 10. **Product images**: the 3-jar cards use lifestyle shots (IMG_3618 / IMG_3613) — replace with real bundle packshots when available.
-11. **Free gift towel is not purchasable on the storefront yet**: the "Bamboo Beauty Towels" product (variant 55089188438391, SKU 600007) is ACTIVE but **not published to the Online Store channel** (`publishedAt: null`; `/variants/55089188438391.js` → 404; adding it via `/cart/add` → "Cannot find variant"). Publish it to Online Store (Products → Bamboo Beauty Towels → Sales channels → Online Store) so the 3-pack really adds the gift. Until then the compiled pages **automatically leave the gift out** of the button (Liquid `all_products['bamboo-beauty-towel'].available` guard) so add-to-cart never breaks; the "free towel" copy on the cards would then over-promise — check before publishing.
+11. **Free gift removed** (2026-08-17): the interstitials no longer offer the Bamboo Beauty Towel — no add-on, no gift line/image on the 3-pack. Existing stores are cleaned automatically on the next app load (migration v2, see above); nothing to do. (Background: the towel product was never published to the Online Store channel, so it could not be added from the storefront anyway.) If a gift is ever wanted again: Commerce tab → 3-pack card → "Also add to cart" + gift line, and publish the gift product to Online Store first.
 12. **Enable the app embed** "Open cart after add" (Online Store → Themes → Customize → App embeds) after `shopify app deploy`, so the cart drawer opens on Shop All after an add-to-cart. Not required for the add/redirect itself.
 
 ## Image manifest — what was reused vs generated
@@ -44,7 +45,7 @@ Not verifiable from here (needs the app installed on the store): the real theme'
 - REUSE (Angle sheets, already generated): all before/after diptychs, application close-ups, "before" profiles, jawline hero, dark-spot hero — bundled in `public/seed/`, re-hosted to Shopify Files on install.
 - GENERATED (Higgsfield Soul, same unretouched UGC style): crepey-skin hero lifestyle shot (+ an alternate in the library), 12 testimonial portraits (4 per page).
 - GENERATED as crisp editorial SVG (translatable, tiny): skin-layer diagram, scaffold/house-frame diagram, pigment-switch diagram, award seal placeholder.
-- Shopify CDN: jars/tubes/box/towel product shots.
+- Shopify CDN: jars/tubes/box product shots.
 - Library extras (not placed): legs + upper-arm problem shots (Angle 1 IMG-C/D), pearl-dab macro, alternate hero.
 
 ## Known caveats

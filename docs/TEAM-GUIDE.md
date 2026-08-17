@@ -38,21 +38,21 @@ In any image field:
 - **Generate with AI** — the slot has a default prompt written for it (e.g. "candid unretouched portrait of a woman aged 55–70…"). Edit it, choose **Higgsfield** (photos) or **Claude** (SVG diagrams), click Generate (about a minute). Our brand style ("unretouched, natural light, no text…") is added automatically. The result is saved to the CDN and the library.
 - Add **alt text**. **Remove** clears the slot (the page then shows a visible "image slot" box so you don't forget it).
 
-Product shots: use the Shopify product images (jar 5M2A1560_1, jawline jar 5M2A1565_1, dark-spot tube, towel Towel1). The doctor portrait must be a **real** endorsing dermatologist's photo — never generate one.
+Product shots: use the Shopify product images (jar 5M2A1560_1, jawline jar 5M2A1565_1, dark-spot tube). The doctor portrait must be a **real** endorsing dermatologist's photo — never generate one.
 
 ## 4. Duplicate a page for a new product (minutes, not days)
 
 Pages → **New page from template** (or Duplicate → "Use the guided wizard").
 
 1. **Source & name** — which page to copy (the template is offered first), the new title, the URL slug (`/a/go/neck-cream` etc. — one URL per funnel keeps tracking clean), a funnel label.
-2. **Product & bundles** — **Choose product** (Shopify picker). The 1 / 2 / 3-unit variants map to the three cards automatically — check the variant IDs, units and unit label ("jar"/"tube"), and the manual price lines (they're the fallback and what the preview shows). The free-gift add-on (Bamboo Beauty Towel on the 3-pack) carries over. Set the **discount code** — turn it **on** to append the code to every add-to-cart link, or leave it **off** to rely on the built-in 2-unit / 3-unit bundle prices we already have. Add-to-cart behaviour defaults to **Store default** (Settings → After add to cart: add to cart → Shop All with the cart drawer open); a page can override it with "straight to checkout" or "add to cart, open cart page".
+2. **Product & bundles** — **Choose product** (Shopify picker). The 1 / 2 / 3-unit variants map to the three cards automatically — check the variant IDs, units and unit label ("jar"/"tube"), and the manual price lines (they're the fallback and what the preview shows). There is **no free gift** on the interstitials (removed 2026-08-17); the optional "Also add to cart" add-ons stay empty unless you deliberately add one. Set the **discount code** — turn it **on** to append the code to every add-to-cart link, or leave it **off** to rely on the built-in 2-unit / 3-unit bundle prices we already have. Add-to-cart behaviour defaults to **Store default** (Settings → After add to cart: add to cart → Shop All with the cart drawer open); a page can override it with "straight to checkout" or "add to cart, open cart page".
 3. **Product-specific copy** — only the fields that change per product: headline, subhead, trust bar, the three reasons (image + heading + body), differentiation, science steps, evidence, pillars, expert quote, pricing cards/footnote/cross-sell, comparison table columns/rows, timeline, testimonials, reviews, FAQ, final CTA. Optional: write a **brief** and let **Claude draft all of them** in the same structure/tone (images untouched, nothing invented beyond the brief) — then read every field.
 4. **Images** — every image slot with keep / upload / library / generate.
 5. **Review & create** — a draft page opens in the editor. Shared elements (guarantee, purity, pillars, disclaimer, sticky bar) came over automatically and follow the global Settings.
 
 ## 5. Bundles, discount code, links (Commerce tab)
 
-- Each pricing card sells one Shopify **variant** (+ optional add-ons like the free towel). Buttons build the cart link for you:
+- Each pricing card sells one Shopify **variant** (optional add-ons are possible but unused — the free towel was removed from every interstitial). Buttons build the cart link for you:
   - **Store default** (Settings → After add to cart, on by default): the items are added to the cart and the visitor lands on the **Shop All** collection with the **cart drawer open** — they see what they just added and are nudged to add more products before checking out. `/cart/add?items[][id]=…&return_to=/collections/shop-all?cx_cart=open` (with a code: `/discount/CODE?redirect=…`).
   - **Straight to checkout**: `/cart/<variant>:1,<gift>:1?discount=CODE`
   - **Add to cart → cart page**: `/discount/CODE?redirect=/cart/add?…&return_to=/cart`
