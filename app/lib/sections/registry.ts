@@ -419,6 +419,7 @@ const pricingCardFields: FieldDef[] = [
   // subscription mode (Commerce → Purchase mode = subscription): shown under the price
   text("deliveryLine", "Delivery line (subscription)", { placeholder: "Delivered every 4 weeks · skip, pause or cancel anytime", help: "Subscription mode only." }),
   text("offerLine", "Offer line (subscription)", { placeholder: "20% off your first order, then 10% off every delivery", help: "Subscription mode only." }),
+  textarea("belowButton", "Small print under the button", { placeholder: "Billed €54.15 every 2 months · cancel anytime", help: "Shown right under the button (any mode). In subscription mode it disappears with the card's subscription when a market falls back to one-time." }),
   // commerce (rendered by the dedicated commerce UI in the editor)
   text("variantId", "Shopify variant ID", { translatable: false, advanced: true, productSpecific: true }),
   text("variantTitle", "Variant title (info)", { translatable: false, advanced: true }),
@@ -569,6 +570,7 @@ const pricing: SectionDef = {
         const subLinesHtml = subMode
           ? `${c.deliveryLine ? `<p class="cx-card__delivery">${ICONS.clock}<span>${itemT(h, "cards", i, "deliveryLine", c.deliveryLine)}</span></p>` : ""}${c.offerLine ? `<p class="cx-card__offer">${itemT(h, "cards", i, "offerLine", c.offerLine)}</p>` : ""}`
           : "";
+        const noteHtml = c.belowButton ? `<p class="cx-card__note">${itemT(h, "cards", i, "belowButton", c.belowButton)}</p>` : "";
         const btnCls = `${brand.ctaStyle === "ink" ? "cx-btn cx-btn--ink" : "cx-btn cx-btn--accent"} cx-btn--block cx-card__btn`;
         const label = c.buttonLabel ? itemT(h, "cards", i, "buttonLabel", c.buttonLabel) : subMode ? wSubBtn : wOneBtn;
         const button = (href: string, sub: boolean) =>
@@ -577,30 +579,36 @@ const pricing: SectionDef = {
         let priceBlock: string;
         let lines: string;
         let btn: string;
+        let note: string;
         if (planKnown && subUnavailable === "one-time") {
           // storefront, plan may be missing for this market/variant → full one-time fallback
           const oneTimePrice = live ? `{% if ${v} %}${liveOneTime}{% else %}${manualOneTime}{% endif %}` : manualOneTime;
           priceBlock = `{% if ${a} %}${live ? liveSub : manualSub}{% else %}${oneTimePrice}{% endif %}`;
           lines = `{% if ${a} %}${subLinesHtml}{% endif %}`;
           btn = `{% if ${a} %}${button(subHref, true)}{% else %}${button(oneTimeHref, false)}{% endif %}`;
+          note = noteHtml ? `{% if ${a} %}${noteHtml}{% endif %}` : "";
         } else if (planKnown) {
           // "hide" policy: the whole card is wrapped below; inside, the plan is known to exist
           priceBlock = live ? liveSub : manualSub;
           lines = subLinesHtml;
           btn = button(subHref, true);
+          note = noteHtml;
         } else if (subMode) {
           // preview, or storefront without product handle (no lookup possible)
           priceBlock = manualSub;
           lines = subLinesHtml;
           btn = button(subHref, !!plan);
+          note = noteHtml;
         } else if (live && vid) {
           priceBlock = `{% if ${v} %}${liveOneTime}{% else %}${manualOneTime}{% endif %}`;
           lines = "";
           btn = button(subHref, false);
+          note = noteHtml;
         } else {
           priceBlock = manualOneTime;
           lines = "";
           btn = button(subHref, false);
+          note = noteHtml;
         }
 
         const checks = splitDots(c.checks || "")
@@ -635,6 +643,7 @@ const pricing: SectionDef = {
     ${c.description ? `<p class="cx-card__desc">${itemT(h, "cards", i, "description", c.description)}</p>` : ""}
     ${gift}
     ${btn}
+    ${note}
     <ul class="cx-card__checks">${checks}${defaultChecks}</ul>
   </div>
 </li>`);

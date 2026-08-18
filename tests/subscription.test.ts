@@ -276,3 +276,54 @@ describe("subscription mode — hardening (adversarial review)", () => {
     expect(SECTION_MAP.pricing.fields.some((f: any) => f.key === "labelPerDelivery")).toBe(true);
   });
 });
+
+describe("per-variant selling plans (the 1×/2×/3× wiring bug)", () => {
+  // Real store state (2026-08-17): 1 Jar → group "Every 2 months" (plan 718190313847);
+  // 2 Jars / 3 Jars → group "Every 3 months" (plan 718190281079). The API lists the 3-month group FIRST.
+  const plans = [sellingPlanInfoFromNode(NODE_3M, "Every 3 months", "gid://shopify/SellingPlanGroup/105140617591"), sellingPlanInfoFromNode(NODE_2M, "Every 2 months", "gid://shopify/SellingPlanGroup/105140650359")];
+  const variantPlans = { "42686740791432": ["718190313847"], "42686740824200": ["718190281079"], "42739679559816": ["718190281079"] };
+  it("wires each card to the plan attached to ITS variant, never by position", async () => {
+    const { autoWireCardPlans, plansForVariant } = await import("../app/lib/commerce/subscription");
+    const page = seed("crepey-skin");
+    const cards = page.sections.find((s) => s.type === "pricing")!.data.cards; // 1 jar, 3 jars (highlight), 2 jars
+    expect(cards.map((c: any) => c.variantId)).toEqual(["42686740791432", "42739679559816", "42686740824200"]);
+    const wired = autoWireCardPlans(cards, plans, variantPlans);
+    expect(wired).toEqual({ "0": "718190313847", "1": "718190281079", "2": "718190281079" });
+    expect(plans[0].groupId).toBe("105140617591");
+    expect(plansForVariant(plans, variantPlans, "42686740791432").map((p) => p.id)).toEqual(["718190313847"]);
+    expect(plansForVariant(plans, variantPlans, "999").length).toBe(2); // unknown variant → all plans
+    // a card already wired to a plan that is NOT its variant's gets corrected
+    const wrong = cards.map((c: any, i: number) => ({ ...c, sellingPlanId: i === 0 ? "718190281079" : "718190313847" }));
+    expect(autoWireCardPlans(wrong, plans, variantPlans)).toEqual({ "0": "718190313847", "1": "718190281079", "2": "718190281079" });
+    // variant with no plan → "" (editor warns), and applying presets uses the mapping
+    expect(autoWireCardPlans([{ variantId: "1" }], plans, { "1": [] })).toEqual({ "0": "" });
+    const p = applySubscriptionPresets({ ...page, commerce: { ...page.commerce, subscription: { ...page.commerce.subscription, plans, variantPlans } } }, { plans, cardPlans: wired });
+    const pc = p.sections.find((s) => s.type === "pricing")!.data.cards;
+    expect(pc[0].deliveryLine).toBe("Delivered every 2 months · skip, pause or cancel anytime");
+    expect(pc[1].deliveryLine).toBe("Delivered every 3 months · skip, pause or cancel anytime");
+    expect(pc[2].deliveryLine).toBe("Delivered every 3 months · skip, pause or cancel anytime");
+    const html = renderPage({ page: p, brand: DEFAULT_BRAND, pageId: "t", slug: "t", mode: "preview", storeRoot: "https://cellexialabs.com" }).html;
+    expect(html).toContain("items[][id]=42686740791432&items[][quantity]=1&items[][selling_plan]=718190313847");
+    expect(html).toContain("items[][id]=42739679559816&items[][quantity]=1&items[][selling_plan]=718190281079");
+    expect(html).toContain("items[][id]=42686740824200&items[][quantity]=1&items[][selling_plan]=718190281079");
+  });
+  it("small print under the button renders (and follows the card's subscription in the market fallback)", async () => {
+    const page = applySubscriptionPresets(seed("crepey-skin"), { plans, cardPlans: variantPlans && { "0": "718190313847", "1": "718190281079", "2": "718190281079" } });
+    const pr = page.sections.find((s) => s.type === "pricing")!;
+    pr.data.cards[0].belowButton = "Billed every 2 months · cancel anytime";
+    pr.data.cards[0].buttonLabel = "Start my ritual";
+    const preview = renderPage({ page, brand: DEFAULT_BRAND, pageId: "t", slug: "t", mode: "preview", storeRoot: "https://cellexialabs.com" }).html;
+    expect(preview).toContain('<p class="cx-card__note">Billed every 2 months · cancel anytime</p>');
+    expect(preview).toContain(">Start my ritual</a>");
+    const out = renderPage({ page, brand: DEFAULT_BRAND, pageId: "t", slug: "crepey-skin", mode: "liquid" });
+    const engine = new Liquid({ strictFilters: true, strictVariables: false });
+    engine.registerFilter("money", (c: number) => `€${(Number(c) / 100).toFixed(2)}`);
+    const g = (allocs: any[]) => ({ request: { locale: { iso_code: "en" } }, localization: { country: { iso_code: "IE" } }, routes: { cart_url: "/cart", root_url: "/", collections_url: "/collections" }, all_products: { "body-wrinkle-cream": { variants: [{ id: 42686740791432, price: 5700, compare_at_price: null, selling_plan_allocations: allocs }] } } });
+    const withPlan = await engine.parseAndRender(out.html, g([{ selling_plan: { id: 718190313847 }, price: 5415, compare_at_price: 5700, per_delivery_price: 5415, price_adjustments: [] }]));
+    expect(withPlan).toContain('<p class="cx-card__note">Billed every 2 months · cancel anytime</p>');
+    const without = await engine.parseAndRender(out.html, g([]));
+    const card0 = without.slice(without.indexOf('data-cx-card="0"'), without.indexOf('data-cx-card="1"'));
+    expect(card0).not.toContain("cx-card__note");
+    expect(card0).toContain(">Add to cart</a>");
+  });
+});

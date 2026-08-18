@@ -118,6 +118,8 @@ export interface SellingPlanInfo {
   gid: string;
   name: string;
   groupName: string;
+  /** Selling plan group (numeric id) — groups are attached per variant. */
+  groupId?: string;
   /** e.g. "every 4 weeks" (delivery interval). */
   frequency: string;
   /** Percentage off the first order(s) when the plan has an intro/trial policy. */
@@ -148,6 +150,8 @@ export interface SubscriptionSettings {
   unavailable: "one-time" | "hide";
   /** Selling plans loaded for the product (editor pick-list; refreshed with "Load selling plans"). */
   plans: SellingPlanInfo[];
+  /** Which plans apply to which variant (numeric variant id → plan ids). Selling plan groups are attached per variant. */
+  variantPlans?: Record<string, string[]>;
 }
 
 export interface CommerceSettings {

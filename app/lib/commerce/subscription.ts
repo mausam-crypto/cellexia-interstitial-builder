@@ -40,9 +40,10 @@ function fmtMoney(m: MoneyPolicy): string {
 }
 
 /** Raw Admin API selling plan node → SellingPlanInfo (what the editor and cart need). */
-export function sellingPlanInfoFromNode(node: any, groupName: string): SellingPlanInfo {
+export function sellingPlanInfoFromNode(node: any, groupName: string, groupGid?: string): SellingPlanInfo {
   const gid = String(node?.id || "");
   const id = gid.replace(/\D/g, "");
+  const groupId = String(groupGid || "").replace(/\D/g, "") || undefined;
   const del = node?.deliveryPolicy || node?.billingPolicy || {};
   const bill = node?.billingPolicy || {};
   const frequency = describeFrequency(del.interval, del.intervalCount);
@@ -85,6 +86,7 @@ export function sellingPlanInfoFromNode(node: any, groupName: string): SellingPl
     gid,
     name: String(node?.name || node?.options?.[0] || frequency),
     groupName,
+    groupId,
     frequency,
     firstPct,
     recurringPct,
@@ -95,6 +97,28 @@ export function sellingPlanInfoFromNode(node: any, groupName: string): SellingPl
     billing,
     summary: `${frequency} · ${parts.join(" · ")}`,
   };
+}
+
+/** Plans that Shopify allows for a given variant (selling plan groups are attached per variant). Unknown variant → all plans. */
+export function plansForVariant(plans: SellingPlanInfo[], variantPlans: Record<string, string[]> | undefined, variantId: string | undefined): SellingPlanInfo[] {
+  const vid = String(variantId || "").replace(/\D/g, "");
+  if (!vid || !variantPlans || !(vid in variantPlans)) return plans;
+  const allowed = new Set(variantPlans[vid] || []);
+  return plans.filter((p) => allowed.has(p.id));
+}
+
+/**
+ * Wire cards to plans: keep a plan that is valid for the card's variant; otherwise take the variant's only plan
+ * (or its first one); a variant with no plan gets "" (the editor warns). Never guesses across variants by position.
+ */
+export function autoWireCardPlans(cards: any[], plans: SellingPlanInfo[], variantPlans?: Record<string, string[]>): Record<string, string> {
+  const out: Record<string, string> = {};
+  cards.forEach((cd, i) => {
+    const candidates = plansForVariant(plans, variantPlans, cd.variantId);
+    const cur = String(cd.sellingPlanId || "").replace(/\D/g, "");
+    out[String(i)] = candidates.some((p) => p.id === cur) ? cur : candidates[0]?.id || "";
+  });
+  return out;
 }
 
 /** Guess the offer type from the plans' pricing: 40%+ intro → trial; intro ≠ recurring → intro; else simple. */

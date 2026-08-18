@@ -2,7 +2,7 @@ import type { ActionFunctionArgs } from "react-router";
 import { requireAdmin } from "../lib/auth.server";
 import { sellingPlanInfoFromNode } from "../lib/commerce/subscription";
 
-const SELLING_PLANS_FIELDS = `sellingPlanGroups(first: 20) { nodes { id name appId sellingPlans(first: 25) { nodes { id name description options billingPolicy { __typename ... on SellingPlanRecurringBillingPolicy { interval intervalCount } } deliveryPolicy { __typename ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount } } pricingPolicies { __typename ... on SellingPlanFixedPricingPolicy { adjustmentType adjustmentValue { __typename ... on SellingPlanPricingPolicyPercentageValue { percentage } ... on MoneyV2 { amount currencyCode } } } ... on SellingPlanRecurringPricingPolicy { adjustmentType afterCycle adjustmentValue { __typename ... on SellingPlanPricingPolicyPercentageValue { percentage } ... on MoneyV2 { amount currencyCode } } } } } } } }`;
+const SELLING_PLANS_FIELDS = `variants(first: 100) { nodes { id title sellingPlanGroups(first: 20) { nodes { id } } } } sellingPlanGroups(first: 20) { nodes { id name appId sellingPlans(first: 25) { nodes { id name description options billingPolicy { __typename ... on SellingPlanRecurringBillingPolicy { interval intervalCount } } deliveryPolicy { __typename ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount } } pricingPolicies { __typename ... on SellingPlanFixedPricingPolicy { adjustmentType adjustmentValue { __typename ... on SellingPlanPricingPolicyPercentageValue { percentage } ... on MoneyV2 { amount currencyCode } } } ... on SellingPlanRecurringPricingPolicy { adjustmentType afterCycle adjustmentValue { __typename ... on SellingPlanPricingPolicyPercentageValue { percentage } ... on MoneyV2 { amount currencyCode } } } } } } } }`;
 
 /** Small JSON helpers used by the editor / wizard: product lookup, variant listing, discount-code check. */
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -35,8 +35,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const json: any = await res.json();
       const p = json.data?.product || json.data?.productByHandle;
       if (!p) return Response.json({ error: "Product not found" }, { status: 404 });
-      const plans = (p.sellingPlanGroups?.nodes || []).flatMap((g: any) => (g.sellingPlans?.nodes || []).map((n: any) => sellingPlanInfoFromNode(n, g.name || "")));
-      return Response.json({ product: { id: p.id, title: p.title, handle: p.handle }, plans });
+      const plans = (p.sellingPlanGroups?.nodes || []).flatMap((g: any) => (g.sellingPlans?.nodes || []).map((n: any) => sellingPlanInfoFromNode(n, g.name || "", g.id)));
+      // Selling plan groups are attached per VARIANT: map each variant to the plans of its groups (a card must only
+      // use a plan of its own variant — Shopify rejects the line otherwise, and frequencies differ per pack size).
+      const plansByGroup = new Map<string, string[]>();
+      for (const pl of plans) if (pl.groupId) plansByGroup.set(pl.groupId, [...(plansByGroup.get(pl.groupId) || []), pl.id]);
+      const variantPlans: Record<string, string[]> = {};
+      for (const v of p.variants?.nodes || []) {
+        const vid = String(v.id || "").replace(/\D/g, "");
+        variantPlans[vid] = (v.sellingPlanGroups?.nodes || []).flatMap((g: any) => plansByGroup.get(String(g.id || "").replace(/\D/g, "")) || []);
+      }
+      return Response.json({ product: { id: p.id, title: p.title, handle: p.handle }, plans, variantPlans });
     }
     if (act === "checkDiscount") {
       const code = String(body.code || "").trim();
