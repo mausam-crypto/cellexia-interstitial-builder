@@ -1,4 +1,4 @@
-import type { BrandSettings, PageContent, CommerceSettings } from "./types";
+import type { BrandSettings, PageContent, CommerceSettings, SubscriptionSettings } from "./types";
 
 /** Cellexia brand defaults — pulled from cellexialabs.com's live theme tokens (Aug 2026). */
 export const DEFAULT_BRAND: BrandSettings = {
@@ -47,13 +47,18 @@ export function mergeBrand(partial?: Partial<BrandSettings> | null): BrandSettin
     ai: { ...DEFAULT_BRAND.ai, ...(p.ai || {}) },
     discountDefaults: { ...DEFAULT_BRAND.discountDefaults, ...(p.discountDefaults || {}) },
     afterAddToCart: { ...DEFAULT_BRAND.afterAddToCart, ...(p.afterAddToCart || {}) },
+    prompts: { ...(p.prompts || {}), slotHints: { ...(p.prompts?.slotHints || {}) } },
     translations: p.translations || {},
     paymentIcons: p.paymentIcons || DEFAULT_BRAND.paymentIcons,
   };
 }
 
+export const DEFAULT_SUBSCRIPTION: SubscriptionSettings = { offerType: "simple", unavailable: "one-time", plans: [] };
+
 export const DEFAULT_COMMERCE: CommerceSettings = {
   productHandle: "",
+  purchaseMode: "one-time",
+  subscription: { ...DEFAULT_SUBSCRIPTION },
   productTitle: "",
   productId: "",
   discountCode: "",
@@ -86,7 +91,13 @@ export function normalizePage(input: any): PageContent {
     ...p,
     version: 1,
     sections: Array.isArray(p.sections) ? p.sections.filter((s: any) => s && s.type && s.id).map((s: any) => ({ ...s, data: s.data || {} })) : [],
-    commerce: { ...base.commerce, ...(p.commerce || {}), marketOverrides: (p.commerce && p.commerce.marketOverrides) || {} },
+    commerce: {
+      ...base.commerce,
+      ...(p.commerce || {}),
+      purchaseMode: p.commerce?.purchaseMode === "subscription" ? "subscription" : "one-time",
+      subscription: { ...DEFAULT_SUBSCRIPTION, ...(p.commerce?.subscription || {}), plans: Array.isArray(p.commerce?.subscription?.plans) ? p.commerce.subscription.plans : [] },
+      marketOverrides: (p.commerce && p.commerce.marketOverrides) || {},
+    },
     stickyBar: { ...base.stickyBar, ...(p.stickyBar || {}) },
     seo: { ...base.seo, ...(p.seo || {}) },
     translations: p.translations && typeof p.translations === "object" ? p.translations : {},

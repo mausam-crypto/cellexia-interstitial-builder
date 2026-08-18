@@ -33,6 +33,8 @@ export const DARK_SPOTS_SEED: { slug: string; title: string; productHandle: stri
       discountCode: "SPOTS20",
       discountEnabled: false,
       checkoutMode: "default",
+      purchaseMode: "one-time",
+      subscription: { offerType: "simple", unavailable: "one-time", plans: [] },
       utmPassthrough: true,
       livePrices: true,
       marketOverrides: {},

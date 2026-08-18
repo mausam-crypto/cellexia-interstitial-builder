@@ -3,7 +3,9 @@ import { requireAdmin } from "../lib/auth.server";
 import { getSettings } from "../lib/pages.server";
 import { normalizePage } from "../lib/brand";
 import { generateImageAsset } from "../lib/integrations/images.server";
-import { claudeGenerateSectionCopy } from "../lib/integrations/claude.server";
+import { claudeGenerateSectionCopy, claudeGenerateImagePrompts } from "../lib/integrations/claude.server";
+import { SECTION_MAP } from "../lib/sections/registry";
+import { collectImageSlots, generatableSlots, pageCopyDigest, applySlotHintOverrides } from "../lib/images/slots";
 import { translatePage } from "../lib/integrations/translate.server";
 import { fetchShopLocalesAndMarkets } from "../lib/shop-info.server";
 
@@ -11,6 +13,7 @@ import { fetchShopLocalesAndMarkets } from "../lib/shop-info.server";
  * JSON API for AI features (all keys come from Settings / env):
  *   { action: "image", prompt, aspect?, provider?, alt? }              → { image }
  *   { action: "section-copy", sectionType, sectionLabel, fields, currentData, brief, productName? } → { data }
+ *   { action: "image-prompts", content, brief?, slotIds? }             → { cast, prompts: [{id, prompt, alt, provider}] }
  *   { action: "translate-page", content, provider, targetLocales, onlyMissing } → { content, message }
  */
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -30,6 +33,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         if (!secrets.anthropicApiKey) throw new Error("Add your Anthropic API key in Settings first.");
         const data = await claudeGenerateSectionCopy({ apiKey: secrets.anthropicApiKey, model: brand.ai.claudeModel, sectionType: body.sectionType, sectionLabel: body.sectionLabel, fields: body.fields || [], currentData: body.currentData || {}, brief: String(body.brief || ""), productName: body.productName, brandVoice: "Premium, editorial, dermatologist-backed, warm and direct. Native-ads listicle style (Glow25). Never invent clinical numbers." });
         return Response.json({ data });
+      }
+      case "image-prompts": {
+        if (!secrets.anthropicApiKey) throw new Error("Add your Anthropic API key in Settings first.");
+        const content = normalizePage(body.content);
+        const defs = applySlotHintOverrides(Object.fromEntries(Object.entries(SECTION_MAP).map(([t, d]) => [t, { label: d.label, fields: d.fields }])), brand.prompts?.slotHints);
+        const only: string[] | null = Array.isArray(body.slotIds) && body.slotIds.length ? body.slotIds.map(String) : null;
+        const slots = generatableSlots(collectImageSlots(content, defs)).filter((s) => !only || only.includes(s.id));
+        if (!slots.length) return Response.json({ cast: "", prompts: [] });
+        const result = await claudeGenerateImagePrompts({
+          apiKey: secrets.anthropicApiKey,
+          model: brand.ai.claudeModel,
+          productName: `${content.commerce.productTitle || content.commerce.productHandle || ""}${content.commerce.purchaseMode === "subscription" ? " — sold as a subscription (recurring deliveries; show the routine as ongoing care, never a one-off)" : ""}` || undefined,
+          pageCopy: pageCopyDigest(content, defs),
+          brandStyle: brand.ai.imageStyle || "",
+          brief: String(body.brief || "") || undefined,
+          existingCast: content.imagePlan?.cast || undefined,
+          prompts: brand.prompts,
+          slots: slots.map((s) => ({ id: s.id, label: s.label, aspect: s.aspect, kind: s.kind === "diagram" ? "diagram" : "photo", hint: s.hint, context: s.context, currentAlt: s.value?.alt, hasImage: !!s.value?.src })),
+        });
+        return Response.json(result);
       }
       case "translate-page": {
         const provider = body.provider === "claude" ? "claude" : "deepl";

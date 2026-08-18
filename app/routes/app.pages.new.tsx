@@ -7,9 +7,13 @@ import { requireAdmin } from "../lib/auth.server";
 import { listPages, getPage, getSettings, createPage, clonePageContent } from "../lib/pages.server";
 import { slugify } from "../lib/slug";
 import { SECTION_DEFS } from "../lib/sections/registry";
+import { applySlotHintOverrides } from "../lib/images/slots";
 import { normalizePage } from "../lib/brand";
 import prisma from "../db.server";
 import { SectionForm, ImageField, type AiHelpers } from "../components/editor/SectionForm";
+import { ImagesPanel } from "../components/editor/ImagesPanel";
+import { SubscriptionControls } from "../components/editor/SubscriptionControls";
+import { subscriptionBrief, resetPlansForNewProduct } from "../lib/commerce/subscription";
 import type { ClientSectionDef, LibraryImage } from "../components/editor/types";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -20,7 +24,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const source = from ? await getPage(shop, from) : null;
   const { brand, secrets, defaults } = await getSettings(shop);
   const library = await prisma.imageAsset.findMany({ where: { shop }, orderBy: { createdAt: "desc" }, take: 80 });
-  const defs: ClientSectionDef[] = SECTION_DEFS.map((d) => ({ type: d.type, label: d.label, description: d.description, icon: d.icon, category: d.category, singleton: d.singleton, fields: d.fields, defaults: d.defaults() }));
+  // Image fields carry the merchant's default prompts from the Prompts page (fallback prompt + hint for the writer).
+  const hinted = applySlotHintOverrides(Object.fromEntries(SECTION_DEFS.map((d) => [d.type, { label: d.label, fields: d.fields }])), brand.prompts?.slotHints);
+  const defs: ClientSectionDef[] = SECTION_DEFS.map((d) => ({ type: d.type, label: d.label, description: d.description, icon: d.icon, category: d.category, singleton: d.singleton, fields: hinted[d.type]?.fields || d.fields, defaults: d.defaults() }));
   return {
     devMode,
     pages: pages.map((p) => ({ id: p.id, title: p.title, isTemplate: p.isTemplate, productTitle: p.productTitle })),
@@ -32,6 +38,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     storeUrl: (brand.storeUrl || `https://${shop}`).replace(/\/$/, ""),
     aiAvailable: !!secrets.anthropicApiKey,
     imageAiAvailable: !!(secrets.higgsfieldKeyId && secrets.higgsfieldKeySecret) || !!secrets.anthropicApiKey,
+    photoAiAvailable: !!(secrets.higgsfieldKeyId && secrets.higgsfieldKeySecret),
     hasAdmin: !!admin,
   };
 };
@@ -79,8 +86,13 @@ export default function NewPageWizard() {
   const ai: AiHelpers = {
     aiAvailable: data.aiAvailable,
     imageAiAvailable: data.imageAiAvailable,
+    photoAiAvailable: data.photoAiAvailable,
     library: data.library,
     generateImage: async ({ prompt, aspect, provider, alt }) => (await api("/api/ai", { action: "image", prompt, aspect, provider, alt })).image as ImageValue,
+    writeImagePrompts: async (c, brief) => {
+      const r = await api("/api/ai", { action: "image-prompts", content: c, brief });
+      return { cast: r.cast || "", prompts: r.prompts || [] };
+    },
     uploadImage: async (file) => {
       const fd = new FormData();
       fd.append("file", file);
@@ -103,9 +115,12 @@ export default function NewPageWizard() {
   const c = content;
   const pricing = c.sections.find((s) => s.type === "pricing");
   const cards: any[] = pricing?.data?.cards || [];
-  const setCommerce = (patch: Partial<PageContent["commerce"]>) => setContent({ ...c, commerce: { ...c.commerce, ...patch } });
-  const setSectionData = (id: string, d: any) => setContent({ ...c, sections: c.sections.map((s) => (s.id === id ? { ...s, data: d } : s)) });
-  const setCard = (i: number, patch: any) => pricing && setSectionData(pricing.id, { ...pricing.data, cards: cards.map((cd, k) => (k === i ? { ...cd, ...patch } : cd)) });
+  // Functional updates: async callbacks (uploads, AI generation, the Images panel pool) may land at any time —
+  // never overwrite the page with a render-time snapshot.
+  const setCommerce = (patch: Partial<PageContent["commerce"]>) => setContent((prev) => (prev ? { ...prev, commerce: { ...prev.commerce, ...patch } } : prev));
+  const setSectionData = (id: string, d: any) => setContent((prev) => (prev ? { ...prev, sections: prev.sections.map((s) => (s.id === id ? { ...s, data: d } : s)) } : prev));
+  const patchSectionData = (id: string, patch: (data: any) => any) => setContent((prev) => (prev ? { ...prev, sections: prev.sections.map((s) => (s.id === id ? { ...s, data: patch(s.data) } : s)) } : prev));
+  const setCard = (i: number, patch: any) => pricing && patchSectionData(pricing.id, (data) => ({ ...data, cards: (data.cards || []).map((cd: any, k: number) => (k === i ? { ...cd, ...patch } : cd)) }));
   const productSections = c.sections.filter((s) => defs[s.type]?.fields.some((f) => f.productSpecific));
   const shopifyBridge: any = typeof window !== "undefined" ? (window as any).shopify : null;
 
@@ -115,12 +130,12 @@ export default function NewPageWizard() {
     const def = defs[s.type];
     if (!def) continue;
     for (const f of def.fields) {
-      if (f.type === "image") imageSlots.push({ sectionId: s.id, label: `${def.label} — ${f.label}`, field: f, get: () => s.data[f.key], set: (v) => setSectionData(s.id, { ...s.data, [f.key]: v }) });
+      if (f.type === "image") imageSlots.push({ sectionId: s.id, label: `${def.label} — ${f.label}`, field: f, get: () => s.data[f.key], set: (v) => patchSectionData(s.id, (data) => ({ ...data, [f.key]: v })) });
       if (f.type === "list") {
         (s.data[f.key] || []).forEach((item: any, i: number) => {
           for (const sub of f.item || []) {
             if (sub.type === "image" && (sub.key === "image" || item?.[sub.key]?.src)) {
-              imageSlots.push({ sectionId: s.id, label: `${def.label} — ${f.label} ${i + 1}${item?.title || item?.name || item?.label ? ` (${item.title || item.name || item.label})` : ""} — ${sub.label}`, field: sub, get: () => (s.data[f.key] || [])[i]?.[sub.key], set: (v) => setSectionData(s.id, { ...s.data, [f.key]: (s.data[f.key] || []).map((it: any, k: number) => (k === i ? { ...it, [sub.key]: v } : it)) }) });
+              imageSlots.push({ sectionId: s.id, label: `${def.label} — ${f.label} ${i + 1}${item?.title || item?.name || item?.label ? ` (${item.title || item.name || item.label})` : ""} — ${sub.label}`, field: sub, get: () => (s.data[f.key] || [])[i]?.[sub.key], set: (v) => patchSectionData(s.id, (data) => ({ ...data, [f.key]: (data[f.key] || []).map((it: any, k: number) => (k === i ? { ...it, [sub.key]: v } : it)) })) });
             }
           }
         });
@@ -144,13 +159,20 @@ export default function NewPageWizard() {
     }
     if (!p) return;
     const variants: Array<{ id: string; title: string }> = (p.variants || []).map((v: any) => ({ id: String(v.id).replace(/\D/g, ""), title: v.title }));
-    const nextCards = cards.map((cd) => {
-      const n = Number(cd.unitCount) || 1;
-      const v = variants.find((x) => new RegExp(`^${n}\\b`).test(x.title)) || (n === 1 ? variants[0] : undefined);
-      return v ? { ...cd, variantId: v.id, variantTitle: v.title } : cd;
+    setContent((prev) => {
+      if (!prev) return prev;
+      // A different product → its selling plans / card plan ids no longer apply (subscription mode)
+      const base = p.handle !== prev.commerce.productHandle ? resetPlansForNewProduct(prev) : prev;
+      const pr = base.sections.find((s) => s.type === "pricing");
+      const baseCards: any[] = pr?.data?.cards || [];
+      const nextCards = baseCards.map((cd) => {
+        const n = Number(cd.unitCount) || 1;
+        const v = variants.find((x) => new RegExp(`^${n}\\b`).test(x.title)) || (n === 1 ? variants[0] : undefined);
+        return v ? { ...cd, variantId: v.id, variantTitle: v.title } : cd;
+      });
+      const nextSections = pr ? base.sections.map((s) => (s.id === pr.id ? { ...s, data: { ...s.data, cards: nextCards } } : s)) : base.sections;
+      return { ...base, commerce: { ...base.commerce, productHandle: p.handle, productTitle: p.title, productId: p.id }, sections: nextSections };
     });
-    const nextSections = pricing ? c.sections.map((s) => (s.id === pricing.id ? { ...s, data: { ...s.data, cards: nextCards } } : s)) : c.sections;
-    setContent({ ...c, commerce: { ...c.commerce, productHandle: p.handle, productTitle: p.title, productId: p.id }, sections: nextSections });
     if (!title) setTitle(p.title);
   };
 
@@ -163,7 +185,7 @@ export default function NewPageWizard() {
       const def = defs[s.type];
       setAiProgress({ done: i, total: targets.length, current: def.label });
       try {
-        const r = await api("/api/ai", { action: "section-copy", sectionType: s.type, sectionLabel: def.label, fields: def.fields, currentData: s.data, brief: aiBrief, productName: current.commerce.productTitle });
+        const r = await api("/api/ai", { action: "section-copy", sectionType: s.type, sectionLabel: def.label, fields: def.fields, currentData: s.data, brief: [aiBrief, subscriptionBrief(current)].filter(Boolean).join("\n\n"), productName: current.commerce.productTitle });
         current = { ...current, sections: current.sections.map((x) => (x.id === s.id ? { ...x, data: r.data } : x)) };
         setContent(current);
       } catch (e: any) {
@@ -240,6 +262,8 @@ export default function NewPageWizard() {
                 {data.discountDefaults.threePack && <Button onClick={() => setCommerce({ discountCode: data.discountDefaults.threePack })}>Use default “{data.discountDefaults.threePack}”</Button>}
               </InlineStack>
               <Select label="Add-to-cart behaviour" options={[{ label: "Store default (Settings → After add to cart)", value: "default" }, { label: "Add to cart → collection (Shop All) with cart drawer open", value: "collection" }, { label: "Straight to checkout (cart permalink)", value: "checkout" }, { label: "Add to cart, open cart page", value: "cart" }]} value={c.commerce.checkoutMode || "default"} onChange={(v) => setCommerce({ checkoutMode: v as any })} />
+              <Divider />
+              <SubscriptionControls content={c} onContent={(next) => setContent(next)} apply={(fn) => setContent((prev) => (prev ? fn(prev) : prev))} loadSellingPlans={(args) => api("/api/products", { action: "sellingPlans", handle: args.handle, productId: args.productId })} />
             </BlockStack>
           </Card>
         )}
@@ -271,11 +295,18 @@ export default function NewPageWizard() {
           </BlockStack>
         )}
 
+        {/* Always mounted so a running generation keeps its progress/Stop when you go Back/Next; hidden off-step. */}
+        <div style={{ display: step === 3 ? "block" : "none" }}>
+          <Card>
+            <ImagesPanel content={c} apply={(fn) => setContent((prev) => (prev ? fn(prev) : prev))} defs={defs} ai={ai} productName={c.commerce.productTitle} initialBrief={aiBrief} compact />
+          </Card>
+        </div>
         {step === 3 && (
           <Card>
             <BlockStack gap="300">
               <Text as="h2" variant="headingMd">Images ({imageSlots.length} slots)</Text>
-              <Text as="p" tone="subdued" variant="bodySm">Keep, upload, pick from the library or generate with AI. Product shots usually come from Shopify; before/after and lifestyle shots from your ad sheet; portraits can be generated in the same unretouched style.</Text>
+              <Text as="h3" variant="headingSm">Slot by slot</Text>
+              <Text as="p" tone="subdued" variant="bodySm">Keep, upload, pick from the library or generate with AI. Product shots usually come from Shopify; the doctor's portrait must be a real photo.</Text>
               {imageSlots.map((slot, i) => (
                 <div key={i}>
                   <ImageField field={{ ...slot.field, label: slot.label }} value={slot.get()} onChange={slot.set} ai={ai} />

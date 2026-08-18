@@ -33,6 +33,8 @@ export const CREPEY_SKIN_SEED: { slug: string; title: string; productHandle: str
       discountCode: "CREPE20",
       discountEnabled: false,
       checkoutMode: "default",
+      purchaseMode: "one-time",
+      subscription: { offerType: "simple", unavailable: "one-time", plans: [] },
       utmPassthrough: true,
       livePrices: true,
       marketOverrides: {},

@@ -139,6 +139,10 @@ font-family:var(--cx-fb);color:var(--cx-body);font-size:17px;line-height:1.6;-we
 .cx-price__save{color:var(--cx-yes);font-weight:700}
 .cx-card__desc{font-size:14.5px;color:var(--cx-body);margin:12px 0 0;line-height:1.5}
 .cx-card__gift{display:flex;gap:10px;align-items:center;text-align:left;background:var(--cx-hl);border-radius:10px;padding:10px 12px;margin:14px 0 0;font-size:13.5px;font-weight:600;color:var(--cx-ink)}
+.cx-card__delivery{display:flex;gap:8px;align-items:center;justify-content:center;font-size:13.5px;color:var(--cx-body);margin:10px 0 0;line-height:1.4}
+.cx-card__delivery svg{width:16px;height:16px;flex:0 0 16px;color:var(--cx-ink)}
+.cx-card__offer{font-size:14px;font-weight:700;color:var(--cx-ink);background:var(--cx-hl);border-radius:10px;padding:8px 12px;margin:10px 0 0;line-height:1.35}
+.cx-pricing__terms{max-width:760px;margin:18px auto 0;text-align:center;font-size:12.5px;line-height:1.5;color:var(--cx-muted)}
 .cx-card__gift-img{width:44px;height:44px;object-fit:cover;border-radius:8px;flex:0 0 44px}
 .cx-card__gift-icon{flex:0 0 auto;display:inline-flex}
 .cx-card__btn{margin:16px 0 14px}

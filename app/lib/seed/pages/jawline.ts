@@ -33,6 +33,8 @@ export const JAWLINE_SEED: { slug: string; title: string; productHandle: string;
       discountCode: "JAWLINE20",
       discountEnabled: false,
       checkoutMode: "default",
+      purchaseMode: "one-time",
+      subscription: { offerType: "simple", unavailable: "one-time", plans: [] },
       utmPassthrough: true,
       livePrices: true,
       marketOverrides: {},

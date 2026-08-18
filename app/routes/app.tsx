@@ -29,6 +29,7 @@ export default function App() {
           <Link to="/app/pages/new" style={{ color: "#fff" }}>New page</Link>
           <Link to="/app/analytics" style={{ color: "#fff" }}>Analytics</Link>
           <Link to="/app/settings" style={{ color: "#fff" }}>Settings</Link>
+          <Link to="/app/prompts" style={{ color: "#fff" }}>Prompts</Link>
           <Link to="/app/help" style={{ color: "#fff" }}>Guide</Link>
           <span style={{ marginLeft: "auto", opacity: 0.6 }}>dev mode</span>
         </nav>
@@ -44,6 +45,7 @@ export default function App() {
           <Link to="/app/pages/new">New page</Link>
           <Link to="/app/analytics">Analytics</Link>
           <Link to="/app/settings">Settings</Link>
+          <Link to="/app/prompts">Prompts</Link>
           <Link to="/app/help">Guide</Link>
         </NavMenu>
         <Outlet />

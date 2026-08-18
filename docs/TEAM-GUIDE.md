@@ -40,6 +40,20 @@ In any image field:
 
 Product shots: use the Shopify product images (jar 5M2A1560_1, jawline jar 5M2A1565_1, dark-spot tube). The doctor portrait must be a **real** endorsing dermatologist's photo — never generate one.
 
+### All images in one click (Images tab)
+
+Instead of writing prompts slot by slot, open the page's **Images** tab (or the wizard's *Images* step):
+
+1. **1 · Write prompts from the copy** — Claude reads the whole page (headline, reasons, testimonials, timeline…) and writes one prompt per image slot, optimised for trust and conversion: one consistent protagonist across the story (same woman in the hero, reasons and timeline), testimonial portraits that match the name/age in each testimonial, authentic application/lifestyle moments, unretouched skin, correct framing for each slot's aspect ratio — and **never** fake before/after results, readable packaging, doctors' faces or stock-photo looks. Optional: type a direction first ("Nordic market, seaside light, woman early 60s…"). The prompts are saved on each slot and stay editable (here and in the section's "Generate with AI" box).
+2. **2 · Generate N images** — Higgsfield generates the photos (Claude draws the diagram slots), 3 at a time, and each image lands in its slot as soon as it's ready (about a minute per image; keep the tab open). Scope: **empty slots only** (default) or **all generatable slots** (replace). Untick a slot to leave it out; failed slots show the error and can be retried one by one; **Stop** keeps what's already done.
+3. Or just press **Write prompts & generate all** to do both.
+
+Never auto-generated (upload/pick manually): the doctor's real portrait, product packshots on the pricing cards, gift/cross-sell images, badge/icon artwork. Everything else — hero, the three reasons, differentiation, evidence, timeline photos, testimonial portraits, generic image sections — is.
+
+### Prompts (top nav) — edit what Claude is told
+
+The **Prompts** page holds every prompt behind the pipeline, editable, with "Reset to default": 1 · the prompt-writer's **system prompt** (the trust/credibility/cast rules); 2 · its **message template** — what Claude receives for a page (`{{product}}`, `{{direction}}`, `{{existingCast}}`, `{{brandStyle}}`, `{{pageCopy}}`, `{{slots}}`, `{{slotCount}}`); 3 · the **diagram (SVG) system prompt**; 4 · the **brand image style** appended to every generated photo (same as Settings); 5 · **slot default prompts** — one per image-slot type (hero, reason image, testimonial portrait…), used when no prompt was written yet and shown to the writer as the slot's hint. Empty = built-in default. Saved prompts apply to the next "Write prompts"/generation on any page (prompts already written on a page's slots stay until you rewrite them).
+
 ## 4. Duplicate a page for a new product (minutes, not days)
 
 Pages → **New page from template** (or Duplicate → "Use the guided wizard").
@@ -47,7 +61,7 @@ Pages → **New page from template** (or Duplicate → "Use the guided wizard").
 1. **Source & name** — which page to copy (the template is offered first), the new title, the URL slug (`/a/go/neck-cream` etc. — one URL per funnel keeps tracking clean), a funnel label.
 2. **Product & bundles** — **Choose product** (Shopify picker). The 1 / 2 / 3-unit variants map to the three cards automatically — check the variant IDs, units and unit label ("jar"/"tube"), and the manual price lines (they're the fallback and what the preview shows). There is **no free gift** on the interstitials (removed 2026-08-17); the optional "Also add to cart" add-ons stay empty unless you deliberately add one. Set the **discount code** — turn it **on** to append the code to every add-to-cart link, or leave it **off** to rely on the built-in 2-unit / 3-unit bundle prices we already have. Add-to-cart behaviour defaults to **Store default** (Settings → After add to cart: add to cart → Shop All with the cart drawer open); a page can override it with "straight to checkout" or "add to cart, open cart page".
 3. **Product-specific copy** — only the fields that change per product: headline, subhead, trust bar, the three reasons (image + heading + body), differentiation, science steps, evidence, pillars, expert quote, pricing cards/footnote/cross-sell, comparison table columns/rows, timeline, testimonials, reviews, FAQ, final CTA. Optional: write a **brief** and let **Claude draft all of them** in the same structure/tone (images untouched, nothing invented beyond the brief) — then read every field.
-4. **Images** — every image slot with keep / upload / library / generate.
+4. **Images** — first the one-click block: **Write prompts from the copy** (uses the copy Claude just drafted) → **Generate all**; then every slot is still listed for keep / upload / library / manual generate.
 5. **Review & create** — a draft page opens in the editor. Shared elements (guarantee, purity, pillars, disclaimer, sticky bar) came over automatically and follow the global Settings.
 
 ## 5. Bundles, discount code, links (Commerce tab)
@@ -61,6 +75,17 @@ Pages → **New page from template** (or Duplicate → "Use the guided wizard").
 - **UTM passthrough**: utm_* / fbclid / gclid on the page URL are carried into the cart as attributes for attribution.
 - **Per-market overrides**: pick a country and set a different code, a different variant for a card, or hide a card. Everything else stays shared.
 - All other buttons on the page ("Order now and save up to 20%", sticky bar) scroll to the pricing section. Nothing on the page links away except cart, checkout, the optional cross-sell product, and the store's own header/footer.
+
+### Subscription mode (subscription-only pages)
+
+Commerce tab → **Purchase mode** → *Subscription only — native Shopify selling plans*. The page then sells subscriptions and nothing else:
+
+1. **Load selling plans for this product** — pulls the plans your subscription app created in Shopify (e.g. "Every 2 Months · 5% off every delivery", "Every 3 Months · 5% off"). Cards are wired by position (card 1 → plan 1 …); change any card's plan in the list below (cards = delivery frequencies).
+2. **Offer type** shapes the wording (the real discounts always come from the selling plans): *Simple* (5–10% off every delivery), *Intro* (20% off the first order, then 5–10%), *Trial* (50% off the first delivery). It's auto-detected from the plans; change it and press **Re-apply subscription copy defaults** if you want fresh wording.
+3. Switching on subscription mode applies editable presets: button labels "Subscribe & save", a **delivery line** and an **offer line** on every card, the **subscription terms** under the cards (recurring-payment disclosure — keep it honest), 4–5 **FAQ** items (how it works, skip/pause/cancel, when am I charged, do I keep the price, what happens after the trial/intro), a **"Why subscribers get the best results"** icon row after the pricing, and the sticky-bar button. Everything is normal section content — edit it anywhere. Switching back to one-time removes what the presets added.
+4. On the store: buttons add the line **with its selling plan** (`selling_plan`), then follow your add-to-cart behaviour (Shop All + drawer by default; "straight to checkout" goes through the cart because Shopify permalinks can't carry subscriptions). **Live prices** come from the plan itself per market — subscriber price, strikethrough one-time price, "first delivery … then … per delivery" for intro/trial plans, per-unit and you-save math. The in-app preview derives the same from your manual price × the plan's %.
+5. If a market or variant doesn't offer the plan, the card shows a one-time button (default) or is hidden — your choice.
+6. AI copy and image prompts automatically get a "this is a subscription page" brief; translations pick up the new lines like any other text.
 
 ## 6. Translate a page
 
@@ -85,4 +110,4 @@ Brand colours/fonts/CTA style, guarantee days + wording, shipping line, support 
 
 When a visitor clicks a pricing-card button the app **adds the items to the cart and sends them to the Shop All collection with the cart drawer open** — instead of straight to checkout — so they're encouraged to add other products first. In Settings you can change the collection (handle, e.g. `shop-all`), switch the drawer auto-open off, or change the default to "straight to checkout" / "cart page". Any page can override this in its Commerce tab.
 
-The drawer auto-open needs the app's tiny theme helper enabled **once**: Online Store → Themes → **Customize** → **App embeds** (left sidebar, puzzle icon) → switch on **"Open cart after add"** → Save. (It's deployed together with the app; if you don't see it, ask whoever deploys the app to run `shopify app deploy`.) Without it, the visitor still lands on Shop All with the items in the cart — the drawer just doesn't pop open by itself.
+The drawer auto-open needs the app's tiny theme helper enabled **once**: Online Store → Themes → **Customize** → **App embeds** (left sidebar, puzzle icon) → switch on **"Open cart after add"** → Save. If visitors land on Shop All with the items in the cart but the drawer stays closed, this switch is off (or the theme you're customizing isn't the live one). (It's deployed together with the app; if you don't see it, ask whoever deploys the app to run `shopify app deploy`.) Without it, the visitor still lands on Shop All with the items in the cart — the drawer just doesn't pop open by itself.

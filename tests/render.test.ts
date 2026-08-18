@@ -294,3 +294,24 @@ describe("v2 migration: free gift removed from existing pages", () => {
     expect(stripTowelGift(seedContent("jawline-ritual")).changed).toBe(false);
   });
 });
+
+describe("v3 migration: legacy 'straight to checkout' pages follow the store default", () => {
+  it("resets checkoutMode 'checkout' → 'default' so buttons add to cart and land on the collection", async () => {
+    const { resetLegacyCheckoutMode, SEED_VERSION } = await import("../app/lib/seed/seed.server");
+    expect(SEED_VERSION).toBeGreaterThanOrEqual(3);
+    const page = seedContent("crepey-skin");
+    page.commerce.checkoutMode = "checkout"; // as seeded by v1
+    const before = renderPage({ page, brand: DEFAULT_BRAND, pageId: "t", slug: "t", mode: "liquid" }).html;
+    expect(before).toContain("{{ routes.cart_url }}/42739679559816:1"); // permalink → checkout
+    const { content, changed } = resetLegacyCheckoutMode(page);
+    expect(changed).toBe(true);
+    expect(content.commerce.checkoutMode).toBe("default");
+    const after = renderPage({ page: content, brand: DEFAULT_BRAND, pageId: "t", slug: "t", mode: "liquid" }).html;
+    expect(after).toContain("{{ routes.cart_url }}/add?items[][id]=42739679559816&items[][quantity]=1&return_to={{ routes.collections_url }}/shop-all?cx_cart=open");
+    expect(after).not.toContain("{{ routes.cart_url }}/42739679559816:1");
+    expect(after).toContain('data-cx-mode="collection"');
+    // idempotent; other modes untouched
+    expect(resetLegacyCheckoutMode(content).changed).toBe(false);
+    expect(resetLegacyCheckoutMode({ ...page, commerce: { ...page.commerce, checkoutMode: "cart" } }).changed).toBe(false);
+  });
+});

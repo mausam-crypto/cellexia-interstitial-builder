@@ -94,6 +94,7 @@ export async function generateImageAsset(opts: GenerateImageAssetOpts): Promise<
     const palette = [b?.inkColor, b?.accentColor, b?.highlightBg, b?.softBg].filter((c): c is string => !!c);
     const svg = await claudeGenerateSvg({
       apiKey: opts.secrets.anthropicApiKey || "",
+      prompts: opts.brand?.prompts,
       model: opts.model || opts.brand?.ai?.claudeModel || undefined,
       prompt,
       width: dims.width,

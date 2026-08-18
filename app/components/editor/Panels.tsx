@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import { TextField, Select, Checkbox, Button, InlineStack, BlockStack, Text, Banner, Popover, ActionList, Badge, Spinner } from "@shopify/polaris";
 import type { PageContent, SectionInstance, MarketOverride } from "../../lib/types";
 import type { ClientSectionDef, LocaleInfo, MarketInfo } from "./types";
+import { SubscriptionControls, type LoadSellingPlans } from "./SubscriptionControls";
+import { resetPlansForNewProduct } from "../../lib/commerce/subscription";
 
 /* ------------------------------------------------------------------ */
 /* Section list (left column)                                           */
@@ -228,16 +230,26 @@ export function CommercePanel({
   pickVariant,
   checkDiscount,
   discountDefaults,
+  afterAddToCart,
+  loadSellingPlans,
+  applyContent,
 }: {
   content: PageContent;
   onContent: (c: PageContent) => void;
+  /** Functional update (latest content) for async flows. */
+  applyContent?: (fn: (c: PageContent) => PageContent) => void;
   markets: MarketInfo[];
+  loadSellingPlans?: LoadSellingPlans;
   pickProduct: () => Promise<{ handle: string; title: string; id: string; variants: Array<{ id: string; title: string; price?: string }> } | null>;
   pickVariant: (cardIndex: number) => Promise<{ id: string; title: string; productHandle?: string } | null>;
   checkDiscount: (code: string) => Promise<{ exists: boolean; summary?: string; error?: string }>;
   discountDefaults: { twoPack: string; threePack: string };
+  afterAddToCart?: { mode: "collection" | "checkout" | "cart"; collectionHandle: string; openCart: boolean };
 }) {
   const c = content.commerce;
+  const storeDefaultLabel = !afterAddToCart || afterAddToCart.mode === "collection"
+    ? `add to cart → /collections/${afterAddToCart?.collectionHandle || "shop-all"}${afterAddToCart?.openCart === false ? "" : " with the cart drawer open"}`
+    : afterAddToCart.mode === "checkout" ? "straight to checkout" : "add to cart → cart page";
   const pricing = content.sections.find((s) => s.type === "pricing");
   const cards: any[] = pricing?.data?.cards || [];
   const [check, setCheck] = useState<{ exists: boolean; summary?: string; error?: string } | null>(null);
@@ -262,28 +274,34 @@ export function CommercePanel({
         <Text as="h4" variant="headingSm">Product</Text>
         <InlineStack gap="200" blockAlign="end">
           <div style={{ flex: 1 }}>
-            <TextField label="Product handle" value={c.productHandle} onChange={(v) => setCommerce({ productHandle: v })} autoComplete="off" helpText="Used for live, market-localised prices ({{ all_products[handle] }})." />
+            <TextField label="Product handle" value={c.productHandle} onChange={(v) => { const changed = v.trim() !== (c.productHandle || "").trim(); const next = changed ? resetPlansForNewProduct(content) : content; onContent({ ...next, commerce: { ...next.commerce, productHandle: v, productId: changed ? "" : c.productId } }); }} autoComplete="off" helpText="Used for live, market-localised prices ({{ all_products[handle] }}). Changing it clears the selling-plan wiring (subscription mode) — reload the plans afterwards." />
           </div>
           <Button
             onClick={async () => {
               const p = await pickProduct();
               if (!p) return;
-              setCommerce({ productHandle: p.handle, productTitle: p.title, productId: p.id });
+              // A different product → its selling plans / card plan ids no longer apply
+              const base = p.handle !== c.productHandle ? resetPlansForNewProduct(content) : content;
+              const baseCards: any[] = base.sections.find((s) => s.id === pricing?.id)?.data?.cards || cards;
+              let next: PageContent = { ...base, commerce: { ...base.commerce, productHandle: p.handle, productTitle: p.title, productId: p.id } };
               // Auto-map cards by unit count when the product has "1 / 2 / 3" style variants.
               if (pricing && p.variants?.length) {
-                const nextCards = cards.map((cd) => {
+                const nextCards = baseCards.map((cd) => {
                   const n = Number(cd.unitCount) || 1;
                   const v = p.variants.find((x) => new RegExp(`^${n}\\b`).test(x.title)) || (n === 1 ? p.variants[0] : undefined);
                   return v ? { ...cd, variantId: v.id.replace(/\D/g, ""), variantTitle: v.title } : cd;
                 });
-                onContent({ ...content, commerce: { ...c, productHandle: p.handle, productTitle: p.title, productId: p.id }, sections: content.sections.map((s) => (s.id === pricing.id ? { ...s, data: { ...s.data, cards: nextCards } } : s)) });
+                next = { ...next, sections: next.sections.map((s) => (s.id === pricing.id ? { ...s, data: { ...s.data, cards: nextCards } } : s)) };
               }
+              onContent(next);
             }}
           >
             Choose product
           </Button>
         </InlineStack>
         {c.productTitle && <Text as="p" tone="subdued">{c.productTitle}</Text>}
+
+        {loadSellingPlans && <SubscriptionControls content={content} onContent={onContent} apply={applyContent} loadSellingPlans={loadSellingPlans} />}
 
         <Text as="h4" variant="headingSm">Pricing cards → cart</Text>
         {!pricing && <Banner tone="warning"><p>This page has no pricing section. Add one from the section list.</p></Banner>}
@@ -376,6 +394,7 @@ export function CommercePanel({
           ]}
           value={c.checkoutMode || "default"}
           onChange={(v) => setCommerce({ checkoutMode: v as any })}
+          helpText={`Store default right now: ${storeDefaultLabel} (change it in Settings → After add to cart).${c.checkoutMode === "checkout" ? " This page overrides it and sends visitors straight to checkout — pick “Store default” to add to cart and land on the collection instead." : ""}`}
         />
         <Checkbox label="Carry UTM / click-id parameters into the cart as attributes (attribution)" checked={c.utmPassthrough} onChange={(v) => setCommerce({ utmPassthrough: v })} />
         <Checkbox label="Show live Shopify prices (auto-localised per market/currency) — manual prices are the fallback" checked={c.livePrices} onChange={(v) => setCommerce({ livePrices: v })} />

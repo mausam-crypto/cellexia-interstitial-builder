@@ -8,6 +8,8 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 
+import { DEFAULT_PROMPTS, effectivePrompt, fillTemplate, type PromptSettings } from "../ai/prompt-defaults";
+export { DEFAULT_PROMPTS };
 export const DEFAULT_CLAUDE_MODEL = "claude-opus-5";
 
 /** Response budget (thinking + text) for the structured calls. */
@@ -323,6 +325,8 @@ export async function claudeGenerateSectionCopy(opts: ClaudeSectionCopyOpts): Pr
 
 export interface ClaudeSvgOpts {
   apiKey: string;
+  /** Merchant-edited prompts (Prompts page). */
+  prompts?: PromptSettings;
   model?: string;
   prompt: string;
   width?: number;
@@ -356,15 +360,11 @@ export async function claudeGenerateSvg(opts: ClaudeSvgOpts): Promise<string> {
   const height = opts.height || 675;
   const palette = (opts.palette || []).filter(Boolean);
 
-  const system =
-    "You are an editorial illustrator producing clean, minimal SVG diagrams for a premium skincare brand's landing pages.\n" +
-    "Output rules:\n" +
-    `- Return ONE self-contained <svg> element and nothing else (no markdown fences, no explanation). Root: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">.\n` +
-    "- No external resources: no <image> with URLs, no @import, no web fonts, no <script>, no <foreignObject>, no event attributes.\n" +
-    "- Use font-family Inter, Arial, sans-serif for any text; keep text minimal (short labels only), legible at 40% scale.\n" +
-    (palette.length ? `- Restrained palette — use only these colours plus white: ${palette.join(", ")}.\n` : "- Restrained palette: 2–3 muted colours plus white.\n") +
-    "- Style: airy editorial diagram, thin strokes, rounded shapes, generous whitespace, no gradients or drop shadows, no clip art, no watermark.\n" +
-    "- Keep the file compact (< 40 KB): simple paths, no embedded raster.";
+  const system = fillTemplate(effectivePrompt(opts.prompts, "svgSystem"), {
+    width,
+    height,
+    paletteRule: palette.length ? `Restrained palette — use only these colours plus white: ${palette.join(", ")}.` : "Restrained palette: 2–3 muted colours plus white.",
+  });
 
   const response = await createMessage(client, {
     model,
@@ -425,4 +425,124 @@ export async function claudeImprovePrompt(opts: ClaudeImprovePromptOpts): Promis
     .replace(/^["'“]+|["'”]+$/g, "")
     .replace(/\s*\n+\s*/g, " ")
     .trim();
+}
+
+/* ------------------------------------------------------------------ */
+/* Image prompts for a whole page (one-click image pipeline)            */
+/* ------------------------------------------------------------------ */
+
+export interface ImagePromptSlotInput {
+  id: string;
+  label: string;
+  aspect: string;
+  kind: "photo" | "diagram";
+  /** Default hint from the section definition. */
+  hint: string;
+  /** Copy right next to the image. */
+  context: string;
+  currentAlt?: string;
+  hasImage: boolean;
+}
+
+export interface ClaudeImagePromptsOpts {
+  apiKey: string;
+  model?: string;
+  productName?: string;
+  /** Plain-text digest of the page's copy (pageCopyDigest). */
+  pageCopy: string;
+  /** brand.ai.imageStyle — appended automatically at generation time; prompts must not repeat it. */
+  brandStyle: string;
+  /** Optional direction from the team (angle, market, casting wishes…). */
+  brief?: string;
+  /** Protagonist description from a previous run of this page — reuse it so regenerated slots still match. */
+  existingCast?: string;
+  /** Merchant-edited prompts (Prompts page). */
+  prompts?: PromptSettings;
+  slots: ImagePromptSlotInput[];
+}
+
+export interface ImagePromptResult {
+  /** Recurring cast so the same protagonist appears across hero / reasons / timeline. */
+  cast: string;
+  prompts: Array<{ id: string; prompt: string; alt: string; provider: "higgsfield" | "claude-svg" }>;
+}
+
+/** The system prompt for the image-prompt writer: the merchant's override (Prompts page) or the default. */
+export function imagePromptsSystemPrompt(prompts?: PromptSettings): string {
+  return effectivePrompt(prompts, "imagePromptsSystem");
+}
+
+/** Schema is built per call so `id` is constrained to the slot ids we asked for. */
+export function imagePromptsSchema(slotIds: string[]) {
+  return {
+    type: "object",
+    properties: {
+      cast: { type: "string", description: "One-sentence description of the recurring protagonist, reused verbatim across story slots." },
+      prompts: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string", enum: slotIds },
+            prompt: { type: "string" },
+            alt: { type: "string" },
+            provider: { type: "string", enum: ["higgsfield", "claude-svg"] },
+          },
+          required: ["id", "prompt", "alt", "provider"],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ["cast", "prompts"],
+    additionalProperties: false,
+  };
+}
+
+/** The slot list as text (one numbered block per slot). */
+export function imagePromptsSlotList(slots: ImagePromptSlotInput[]): string {
+  return slots
+    .map((s, i) => `${i + 1}. id="${s.id}" | ${s.label} | aspect ${s.aspect} | kind ${s.kind}${s.hasImage ? " | currently has an image (a new prompt still helps for regeneration)" : ""}\n   hint: ${s.hint || "—"}\n   context: ${s.context || "—"}${s.currentAlt ? `\n   current alt: ${s.currentAlt}` : ""}`)
+    .join("\n");
+}
+
+/** The user message for the image-prompt writer: the (editable) template with the placeholders filled. */
+export function imagePromptsUserPrompt(opts: ClaudeImagePromptsOpts): string {
+  return fillTemplate(effectivePrompt(opts.prompts, "imagePromptsUser"), {
+    product: opts.productName || "—",
+    direction: opts.brief || "—",
+    existingCast: opts.existingCast || "— (first run: define her)",
+    brandStyle: opts.brandStyle || "—",
+    pageCopy: opts.pageCopy,
+    slots: imagePromptsSlotList(opts.slots),
+    slotCount: opts.slots.length,
+  });
+}
+
+/** Write one optimised prompt per image slot from the page copy. */
+export async function claudeGenerateImagePrompts(opts: ClaudeImagePromptsOpts): Promise<ImagePromptResult> {
+  const client = claudeClient(opts.apiKey);
+  const model = opts.model || DEFAULT_CLAUDE_MODEL;
+  if (!opts.slots.length) return { cast: "", prompts: [] };
+  const response = await createMessage(client, {
+    model,
+    max_tokens: MAX_TOKENS,
+    system: imagePromptsSystemPrompt(opts.prompts),
+    messages: [{ role: "user", content: imagePromptsUserPrompt(opts) }],
+    output_config: { format: { type: "json_schema", schema: imagePromptsSchema(opts.slots.map((s) => s.id)) as unknown as Record<string, unknown> } },
+  });
+  const parsed = parseJson<ImagePromptResult>(firstText(response, "write the image prompts"), "generate image prompts");
+  const valid = new Set(opts.slots.map((s) => s.id));
+  const kinds = new Map(opts.slots.map((s) => [s.id, s.kind]));
+  const prompts = (parsed.prompts || [])
+    .filter((p) => p && valid.has(p.id) && String(p.prompt || "").trim())
+    .map((p) => ({
+      id: p.id,
+      prompt: String(p.prompt).replace(/\s*\n+\s*/g, " ").trim(),
+      alt: String(p.alt || "").trim(),
+      // The slot's kind decides the provider; the model's choice is only a hint.
+      provider: (kinds.get(p.id) === "diagram" ? "claude-svg" : "higgsfield") as "higgsfield" | "claude-svg",
+    }));
+  const missing = opts.slots.filter((s) => !prompts.some((p) => p.id === s.id));
+  if (missing.length) console.warn(`[image-prompts] Claude skipped ${missing.length} slot(s): ${missing.map((m) => m.id).join(", ")}`);
+  return { cast: String(parsed.cast || opts.existingCast || ""), prompts };
 }

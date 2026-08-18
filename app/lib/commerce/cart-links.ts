@@ -5,6 +5,8 @@ export interface CartItem {
   quantity: number;
   /** Liquid mode: only include this item when all_products[guardHandle].available (see CartAddOn.productHandle). */
   guardHandle?: string;
+  /** Subscription mode: Shopify selling plan id → the line is added as a subscription (`selling_plan`). */
+  sellingPlanId?: string;
 }
 
 /**
@@ -16,6 +18,8 @@ export interface CartItem {
  *      (encourages adding more products); wrapped in /discount/CODE?redirect=… when a code is enabled.
  *  - "checkout": Shopify cart permalink → straight to checkout with every item,
  *      e.g. /cart/42739679559816:1,55089188438391:1?discount=CREPE20 (the wiring in the copy docs).
+ *      Subscription lines can't ride a permalink (Shopify: "Selling plans don't work with cart permalinks"),
+ *      so with a selling plan "checkout" becomes /cart/add?items[][id]=…&items[][selling_plan]=…&return_to=/checkout.
  *  - "cart": Glow25-style chain: /discount/CODE?redirect=/cart/add?items[][id]=…&return_to=/cart
  *      (applies the code as a cookie, adds the items, lands on the cart page).
  *
@@ -92,8 +96,9 @@ function buildSingleUrl(
   const validItems = effectiveItems.filter((it) => it.variantId && String(it.variantId).trim());
   if (!validItems.length) return "#cx-offer";
   const mode = effectiveCheckoutMode(commerce, ctx.brand);
+  const hasPlan = validItems.some((it) => it.sellingPlanId);
 
-  if (mode === "cart" || mode === "collection") {
+  if (mode === "cart" || mode === "collection" || hasPlan) {
     // /cart/add?items[][id]=X&items[][quantity]=1&items[][id]=Y&items[][quantity]=1&return_to=<destination>
     // Works without JavaScript; the page script additionally stores UTM attributes on the cart first.
     const atc = ctx.brand.afterAddToCart || { mode: "collection", collectionHandle: "shop-all", openCart: true };
@@ -101,11 +106,13 @@ function buildSingleUrl(
     const destination =
       mode === "collection"
         ? `${collectionsUrl}/${encodeURIComponent(handle)}${atc.openCart ? "?cx_cart=open" : ""}`
-        : liquid
-          ? "{{ routes.cart_url }}"
-          : "/cart";
+        : mode === "checkout"
+          ? "/checkout"
+          : liquid
+            ? "{{ routes.cart_url }}"
+            : "/cart";
     const addParams = validItems
-      .map((it) => `items[][id]=${encodeURIComponent(it.variantId)}&items[][quantity]=${it.quantity || 1}`)
+      .map((it) => `items[][id]=${encodeURIComponent(it.variantId)}&items[][quantity]=${it.quantity || 1}${it.sellingPlanId ? `&items[][selling_plan]=${encodeURIComponent(it.sellingPlanId)}` : ""}`)
       .join("&");
     const addUrl = `${cartUrl}/add?${addParams}&return_to=${destination}`;
     if (useCode) {
@@ -122,9 +129,9 @@ function buildSingleUrl(
 }
 
 /** Items a card adds to the cart: main variant + add-ons (gift). */
-export function cardItems(card: { variantId?: string; quantity?: number; addOns?: Array<{ variantId: string; quantity: number; productHandle?: string }> }): CartItem[] {
+export function cardItems(card: { variantId?: string; quantity?: number; sellingPlanId?: string; addOns?: Array<{ variantId: string; quantity: number; productHandle?: string }> }): CartItem[] {
   const items: CartItem[] = [];
-  if (card.variantId) items.push({ variantId: String(card.variantId), quantity: Number(card.quantity) || 1 });
+  if (card.variantId) items.push({ variantId: String(card.variantId), quantity: Number(card.quantity) || 1, sellingPlanId: String(card.sellingPlanId || "").replace(/\D/g, "") || undefined });
   for (const a of card.addOns || []) {
     if (a.variantId) items.push({ variantId: String(a.variantId), quantity: Number(a.quantity) || 1, guardHandle: (a.productHandle || "").trim() || undefined });
   }

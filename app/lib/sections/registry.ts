@@ -20,6 +20,7 @@ import {
   type SectionHelpers,
 } from "./helpers";
 import { cardItems, numericVariantId, effectiveCheckoutMode } from "../commerce/cart-links";
+import { manualSubscriptionPrices } from "../commerce/subscription";
 
 export interface SectionDef {
   type: string;
@@ -116,7 +117,7 @@ const hero: SectionDef = {
     list(
       "badges",
       "Badge strip",
-      [text("label", "Badge label"), img("image", "Badge image (optional)", "Minimal round badge / seal artwork on transparent background", "1:1")],
+      [text("label", "Badge label"), img("image", "Badge image (optional)", "Minimal round badge / seal artwork on transparent background", "1:1", { aiImage: "skip" })],
       { maxItems: 6 },
     ),
     img("image", "Hero image", `Confident candid lifestyle photo of a woman around 60, ${IMAGE_STYLE_HINT}`, "4:3", { productSpecific: true }),
@@ -290,7 +291,7 @@ const science: SectionDef = {
     rich("closing", "Closing paragraph", { productSpecific: true }),
     bool("showCta", "Show CTA button"),
     text("ctaLabel", "CTA label"),
-    img("image", "Image (optional, shown beside the steps)", `Editorial diagram or photo supporting the mechanism, clean, minimal, ${IMAGE_STYLE_HINT}`, "1:1"),
+    img("image", "Image (optional, shown beside the steps)", `Editorial diagram or photo supporting the mechanism, clean, minimal, ${IMAGE_STYLE_HINT}`, "1:1", { aiImage: "diagram" }),
     select("imagePosition", "Image position", [
       { label: "Left", value: "left" },
       { label: "Right", value: "right" },
@@ -327,7 +328,7 @@ const evidence: SectionDef = {
       { maxItems: 6, help: "Bracketed placeholders stay visible until you replace them with real citations from the clinical dossier." },
     ),
     text("closing", "Closing line (bold)", { productSpecific: true }),
-    img("image", "Supporting image (optional)", `Before/after diptych, clinical comparison-photo aesthetic, ${IMAGE_STYLE_HINT}`, "16:9"),
+    img("image", "Supporting image (optional)", `Credible clinical-feel still: close-up of real mature skin texture on a forearm in soft daylight, or a calm lab-adjacent still life (unbranded jar, dropper, glass dish) — no fabricated results, ${IMAGE_STYLE_HINT}`, "16:9"),
   ],
   defaults: () => ({ heading: "", body: "", citations: [], closing: "", image: undefined }),
   render(h) {
@@ -352,7 +353,7 @@ const pillars: SectionDef = {
   category: "proof",
   fields: [
     textarea("heading", "Heading (H2)", { productSpecific: true }),
-    list("items", "Pillars", [text("title", "Title"), rich("text", "Text"), img("image", "Image / icon (optional)", "Minimal line icon on transparent background", "1:1")], { minItems: 2, maxItems: 6, productSpecific: true }),
+    list("items", "Pillars", [text("title", "Title"), rich("text", "Text"), img("image", "Image / icon (optional)", "Minimal line icon on transparent background", "1:1", { aiImage: "skip" })], { minItems: 2, maxItems: 6, productSpecific: true }),
     bool("showAward", "Show the award seal next to the heading"),
   ],
   defaults: () => ({ heading: "", items: [], showAward: true }),
@@ -381,7 +382,7 @@ const expert_quote: SectionDef = {
     rich("quote", "Quote", { productSpecific: true }),
     text("name", "Name", { help: "e.g. Dr. [FULL NAME] — bracketed placeholders stay visible until filled." }),
     text("credential", "Credential line"),
-    img("image", "Portrait", "REAL endorser photo — do not generate. Upload the dermatologist's photo.", "1:1"),
+    img("image", "Portrait", "REAL endorser photo — do not generate. Upload the dermatologist's photo.", "1:1", { aiImage: "skip" }),
     select("layout", "Layout", [
       { label: "Portrait left, quote right", value: "left" },
       { label: "Centered", value: "center" },
@@ -403,7 +404,7 @@ const pricingCardFields: FieldDef[] = [
   text("subtitle", "Subtitle (small, above title)", { placeholder: "THE FULL 90-DAY PROTOCOL" }),
   text("badge", "Badge (highlighted card)", { placeholder: "RECOMMENDED BY DERMATOLOGISTS" }),
   bool("highlight", "Highlight this card (enlarged + badged)"),
-  img("image", "Product image", "Clean product packshot on white/neutral background, soft studio light", "1:1"),
+  img("image", "Product image", "Clean product packshot on white/neutral background, soft studio light", "1:1", { aiImage: "skip" }),
   text("priceManual", "Price (manual)", { translatable: false, placeholder: "€57.00", help: "Used in preview and as fallback when live prices are off/unavailable." }),
   text("compareManual", "Compare-at price (manual)", { translatable: false, placeholder: "€171.00" }),
   text("perUnitManual", "Per-unit line (manual)", { placeholder: "€45.60 per jar" }),
@@ -412,12 +413,17 @@ const pricingCardFields: FieldDef[] = [
   text("unitLabel", "Unit label", { placeholder: "jar" }),
   textarea("description", "Description line"),
   text("giftLine", "Free gift line (optional)", { placeholder: "FREE gift: … (worth €29) — this pack only" }),
-  img("giftImage", "Gift image (optional)", "Product photo of the gift", "1:1"),
+  img("giftImage", "Gift image (optional)", "Product photo of the gift", "1:1", { aiImage: "skip" }),
   text("checks", "Checkmark lines", { help: "Separate with ' · ' (e.g. Free express shipping · 60-day money-back guarantee)" }),
   text("buttonLabel", "Button label"),
+  // subscription mode (Commerce → Purchase mode = subscription): shown under the price
+  text("deliveryLine", "Delivery line (subscription)", { placeholder: "Delivered every 4 weeks · skip, pause or cancel anytime", help: "Subscription mode only." }),
+  text("offerLine", "Offer line (subscription)", { placeholder: "20% off your first order, then 10% off every delivery", help: "Subscription mode only." }),
   // commerce (rendered by the dedicated commerce UI in the editor)
   text("variantId", "Shopify variant ID", { translatable: false, advanced: true, productSpecific: true }),
   text("variantTitle", "Variant title (info)", { translatable: false, advanced: true }),
+  text("sellingPlanId", "Selling plan ID (subscription)", { translatable: false, advanced: true, productSpecific: true }),
+  text("sellingPlanName", "Selling plan (info)", { translatable: false, advanced: true }),
   { key: "quantity", label: "Quantity", type: "number", translatable: false, advanced: true },
   list("addOns", "Also add to cart (gift / add-ons)", [text("variantId", "Variant ID", { translatable: false }), { key: "quantity", label: "Qty", type: "number", translatable: false }, text("label", "Label (info)", { translatable: false })], { advanced: true, translatable: false }),
 ];
@@ -433,17 +439,33 @@ const pricing: SectionDef = {
     textarea("heading", "Heading (H2)"),
     list("cards", "Cards (left → right)", pricingCardFields, { minItems: 1, maxItems: 4, productSpecific: true }),
     text("footnote", "Line under the cards", { productSpecific: true }),
+    textarea("subscriptionTerms", "Subscription terms (shown under the cards in subscription mode)", { help: "Recurring-payment disclosure: frequency, price per delivery, how to cancel. Required for clarity (and consumer law)." }),
+    text("labelPerDelivery", "Wording: “per delivery”", { group: "Subscription wording", placeholder: "per delivery" }),
+    text("labelFirstDelivery", "Wording: “First delivery”", { group: "Subscription wording", placeholder: "First delivery" }),
+    text("labelThen", "Wording: “then”", { group: "Subscription wording", placeholder: "then" }),
+    text("labelEveryDelivery", "Wording: “every delivery”", { group: "Subscription wording", placeholder: "every delivery" }),
+    text("labelOnFirst", "Wording: “on your first delivery”", { group: "Subscription wording", placeholder: "on your first delivery" }),
+    text("labelSubscribeButton", "Wording: subscription button", { group: "Subscription wording", placeholder: "Subscribe & save" }),
+    text("labelOneTimeButton", "Wording: one-time fallback button", { group: "Subscription wording", placeholder: "Add to cart" }),
     bool("crossSellEnabled", "Show cross-sell card below"),
     text("crossSellTitle", "Cross-sell title", { productSpecific: true }),
     textarea("crossSellText", "Cross-sell text", { productSpecific: true }),
     { key: "crossSellUrl", label: "Cross-sell link", type: "url", translatable: false, productSpecific: true, help: "Should point to a product on the store." },
     text("crossSellButton", "Cross-sell button label"),
-    img("crossSellImage", "Cross-sell image", "Product set packshot", "1:1"),
+    img("crossSellImage", "Cross-sell image", "Product set packshot", "1:1", { aiImage: "skip" }),
   ],
   defaults: () => ({
     heading: "Choose your Cellexia pack",
     cards: [],
     footnote: "",
+    subscriptionTerms: "",
+    labelPerDelivery: "",
+    labelFirstDelivery: "",
+    labelThen: "",
+    labelEveryDelivery: "",
+    labelOnFirst: "",
+    labelSubscribeButton: "",
+    labelOneTimeButton: "",
     crossSellEnabled: false,
     crossSellTitle: "",
     crossSellText: "",
@@ -454,46 +476,133 @@ const pricing: SectionDef = {
   render(h) {
     const { d, ctx, brand } = h;
     const commerce = ctx.page.commerce;
-    const live = ctx.mode === "liquid" && commerce.livePrices && commerce.productHandle;
+    const subMode = commerce.purchaseMode === "subscription";
+    const subUnavailable = commerce.subscription?.unavailable || "one-time";
+    const handleOk = !!commerce.productHandle;
+    const live = ctx.mode === "liquid" && commerce.livePrices && handleOk;
+    // Subscription mode always looks the product up on the storefront (even with live prices off) so the
+    // plan's availability per market/variant can be checked; only the *prices* depend on livePrices.
+    const lookup = live || (ctx.mode === "liquid" && subMode && handleOk);
     const cards: any[] = d.cards || [];
+    const planOf = (c: any) => String(c.sellingPlanId || "").replace(/\D/g, "");
     let liquidLookup = "";
-    if (live) {
+    if (lookup) {
       liquidLookup += `{% assign _cxp = all_products['${esc(commerce.productHandle, "liquid").replace(/'/g, "")}'] %}`;
       cards.forEach((c, i) => {
         const vid = numericVariantId(c.variantId);
         if (vid) {
           liquidLookup += `{% assign _cxv${i} = nil %}{% for _v in _cxp.variants %}{% if _v.id == ${vid} %}{% assign _cxv${i} = _v %}{% endif %}{% endfor %}`;
+          // Subscription: the allocation of this card's selling plan for the visitor's market (nil when the plan isn't offered there)
+          if (subMode && planOf(c)) {
+            liquidLookup += `{% assign _cxa${i} = nil %}{% if _cxv${i} %}{% for _a in _cxv${i}.selling_plan_allocations %}{% if _a.selling_plan.id == ${planOf(c)} %}{% assign _cxa${i} = _a %}{% endif %}{% endfor %}{% endif %}`;
+          }
         }
       });
     }
     const guaranteeShort = brandString(brand, "guaranteeShort", ctx, (v) => inline(v, h.mode));
     const shippingLine = brandString(brand, "shippingLine", ctx, (v) => inline(v, h.mode));
+    // Subscription wording (section-level fields so they are collected for translation)
+    const wPerDelivery = h.t("labelPerDelivery", d.labelPerDelivery || "per delivery");
+    const wFirst = h.t("labelFirstDelivery", d.labelFirstDelivery || "First delivery");
+    const wThen = h.t("labelThen", d.labelThen || "then");
+    const wEvery = h.t("labelEveryDelivery", d.labelEveryDelivery || "every delivery");
+    const wOnFirst = h.t("labelOnFirst", d.labelOnFirst || "on your first delivery");
+    const wSubBtn = h.t("labelSubscribeButton", d.labelSubscribeButton || "Subscribe & save");
+    const wOneBtn = h.t("labelOneTimeButton", d.labelOneTimeButton || "Add to cart");
 
     const cardHtml = cards
       .map((c, i) => {
-        const items = cardItems({ ...c, variantId: numericVariantId(c.variantId), addOns: (c.addOns || []).map((a: any) => ({ ...a, variantId: numericVariantId(a.variantId) })) });
-        const href = h.cartHref(i, items);
+        const plan = subMode ? planOf(c) : "";
+        const vid = numericVariantId(c.variantId);
+        const items = cardItems({ ...c, variantId: vid, sellingPlanId: plan || undefined, addOns: (c.addOns || []).map((a: any) => ({ ...a, variantId: numericVariantId(a.variantId) })) });
+        const oneTimeItems = items.map((it) => ({ ...it, sellingPlanId: undefined }));
+        const subHref = h.cartHref(i, items);
+        const oneTimeHref = plan ? h.cartHref(i, oneTimeItems) : subHref;
+        // On the storefront we know per market/variant whether the plan is offered (_cxa{i}); then the WHOLE card
+        // branches: subscription price/lines/button when offered, one-time price/button when not (or the card is hidden).
+        const planKnown = subMode && !!plan && lookup && !!vid;
+        const a = `_cxa${i}`;
+        const v = `_cxv${i}`;
         const qty = Math.max(1, Number(c.unitCount) || Number(c.quantity) || 1);
         const unit = c.unitLabel ? itemT(h, "cards", i, "unitLabel", c.unitLabel) : "";
         const perUnitLabelKey = `cards.${i}.perUnitSuffix`;
         const perUnitSuffix = h.t(perUnitLabelKey, unit ? ` per ${c.unitLabel}` : "");
         const saveKeyPrefix = h.t(`cards.${i}.savePrefix`, "You save ");
-        let priceBlock: string;
         const manualPrice = c.priceManual ? `<span class="cx-price__now">${h.e(c.priceManual)}</span>` : "";
         const manualCompare = c.compareManual ? `<s class="cx-price__was">${h.e(c.compareManual)}</s>` : "";
         const manualPerUnit = c.perUnitManual ? `<span class="cx-price__unit">${itemT(h, "cards", i, "perUnitManual", c.perUnitManual)}</span>` : "";
         const manualSave = c.saveManual ? `<span class="cx-price__save">${itemT(h, "cards", i, "saveManual", c.saveManual)}</span>` : "";
-        const manualBlock = `<div class="cx-price__main">${manualCompare}${manualPrice}</div>${manualPerUnit || manualSave ? `<div class="cx-price__meta">${manualPerUnit}${manualSave}</div>` : ""}`;
-        if (live && numericVariantId(c.variantId)) {
-          const v = `_cxv${i}`;
-          const liveBlock =
-            `<div class="cx-price__main">{% if ${v}.compare_at_price > ${v}.price %}<s class="cx-price__was">{{ ${v}.compare_at_price | money }}</s>{% elsif ${v}.compare_at_price == blank and ${v}.price %}${manualCompare}{% endif %}<span class="cx-price__now">{{ ${v}.price | money }}</span></div>` +
-            `<div class="cx-price__meta"><span class="cx-price__unit">{{ ${v}.price | divided_by: ${qty} | money }}${perUnitSuffix}</span>` +
-            `{% if ${v}.compare_at_price > ${v}.price %}{% assign _cxsave = ${v}.compare_at_price | minus: ${v}.price %}{% assign _cxpct = _cxsave | times: 100 | divided_by: ${v}.compare_at_price %}<span class="cx-price__save">${saveKeyPrefix}{{ _cxsave | money }} ({{ _cxpct }}%)</span>{% else %}${manualSave}{% endif %}</div>`;
-          priceBlock = `{% if ${v} %}${liveBlock}{% else %}${manualBlock}{% endif %}`;
-        } else {
-          priceBlock = manualBlock;
+        // one-time manual block (preview / fallback)
+        const manualOneTime = `<div class="cx-price__main">${manualCompare}${manualPrice}</div>${manualPerUnit || manualSave ? `<div class="cx-price__meta">${manualPerUnit}${manualSave}</div>` : ""}`;
+        // one-time live block (storefront)
+        const liveOneTime =
+          `<div class="cx-price__main">{% if ${v}.compare_at_price > ${v}.price %}<s class="cx-price__was">{{ ${v}.compare_at_price | money }}</s>{% elsif ${v}.compare_at_price == blank and ${v}.price %}${manualCompare}{% endif %}<span class="cx-price__now">{{ ${v}.price | money }}</span></div>` +
+          `<div class="cx-price__meta"><span class="cx-price__unit">{{ ${v}.price | divided_by: ${qty} | money }}${perUnitSuffix}</span>` +
+          `{% if ${v}.compare_at_price > ${v}.price %}{% assign _cxsave = ${v}.compare_at_price | minus: ${v}.price %}{% assign _cxpct = _cxsave | times: 100 | divided_by: ${v}.compare_at_price %}<span class="cx-price__save">${saveKeyPrefix}{{ _cxsave | money }} ({{ _cxpct }}%)</span>{% else %}${manualSave}{% endif %}</div>`;
+        // subscription manual block (preview / fallback): derived from the manual one-time price + the plan's pricing
+        let manualSub = manualOneTime;
+        const planInfo = subMode ? (commerce.subscription?.plans || []).find((p) => p.id === plan) : undefined;
+        const sm = subMode ? manualSubscriptionPrices(c.priceManual, planInfo) : null;
+        if (sm) {
+          const intro = sm.first !== sm.recurring;
+          manualSub =
+            `<div class="cx-price__main"><s class="cx-price__was">${h.e(sm.compare)}</s><span class="cx-price__now">${h.e(intro ? sm.first : sm.recurring)}</span></div>` +
+            `<div class="cx-price__meta"><span class="cx-price__unit">${intro ? `${wFirst} · ${wThen} ${h.e(sm.recurring)} ${wPerDelivery}` : `${h.e(sm.recurring)} ${wPerDelivery}${unit ? ` · ${qty} ${unit}` : ""}`}</span>` +
+            `${sm.saveLine ? `<span class="cx-price__save">${saveKeyPrefix}${h.e(sm.saveLine.replace(/\{first\}/g, wOnFirst).replace(/\{every\}/g, wEvery))}</span>` : ""}</div>`;
         }
+        // subscription live block: allocation prices per market. price = charged for the first cycle (prepaid: whole
+        // cycle), per_delivery_price = per delivery, price_adjustments (>1) → recurring price after the intro/trial.
+        const liveSub =
+          `{% assign _cxf = ${a}.price %}{% assign _cxpd = ${a}.per_delivery_price | default: _cxf %}{% assign _cxr = _cxpd %}` +
+          `{% if ${a}.price_adjustments.size > 1 %}{% assign _cxla = ${a}.price_adjustments | last %}{% assign _cxr = _cxla.per_delivery_price | default: _cxla.price %}{% endif %}` +
+          `{% if _cxpd != _cxr %}` +
+          `<div class="cx-price__main">{% if ${a}.compare_at_price > _cxf %}<s class="cx-price__was">{{ ${a}.compare_at_price | money }}</s>{% endif %}<span class="cx-price__now">{{ _cxf | money }}</span></div>` +
+          `<div class="cx-price__meta"><span class="cx-price__unit">${wFirst} · ${wThen} {{ _cxr | money }} ${wPerDelivery}</span>` +
+          `{% if ${a}.compare_at_price > _cxf %}{% assign _cxsave = ${a}.compare_at_price | minus: _cxf %}{% assign _cxpct = _cxsave | times: 100 | divided_by: ${a}.compare_at_price %}<span class="cx-price__save">${saveKeyPrefix}{{ _cxsave | money }} ({{ _cxpct }}%) ${wOnFirst}</span>{% endif %}</div>` +
+          `{% else %}` +
+          `<div class="cx-price__main">{% if ${a}.compare_at_price > _cxpd %}<s class="cx-price__was">{{ ${a}.compare_at_price | money }}</s>{% endif %}<span class="cx-price__now">{{ _cxpd | money }}</span></div>` +
+          `<div class="cx-price__meta"><span class="cx-price__unit">{{ _cxpd | divided_by: ${qty} | money }}${perUnitSuffix} · ${wPerDelivery}</span>` +
+          `{% if ${a}.compare_at_price > _cxpd %}{% assign _cxsave = ${a}.compare_at_price | minus: _cxpd %}{% assign _cxpct = _cxsave | times: 100 | divided_by: ${a}.compare_at_price %}<span class="cx-price__save">${saveKeyPrefix}{{ _cxsave | money }} ({{ _cxpct }}%) ${wEvery}</span>{% endif %}</div>` +
+          `{% endif %}`;
+
+        // Assemble price block / lines / button per mode
+        const subLinesHtml = subMode
+          ? `${c.deliveryLine ? `<p class="cx-card__delivery">${ICONS.clock}<span>${itemT(h, "cards", i, "deliveryLine", c.deliveryLine)}</span></p>` : ""}${c.offerLine ? `<p class="cx-card__offer">${itemT(h, "cards", i, "offerLine", c.offerLine)}</p>` : ""}`
+          : "";
+        const btnCls = `${brand.ctaStyle === "ink" ? "cx-btn cx-btn--ink" : "cx-btn cx-btn--accent"} cx-btn--block cx-card__btn`;
+        const label = c.buttonLabel ? itemT(h, "cards", i, "buttonLabel", c.buttonLabel) : subMode ? wSubBtn : wOneBtn;
+        const button = (href: string, sub: boolean) =>
+          `<a class="${btnCls}" href="${href}" data-cx-event="add_to_cart" data-cx-card="${i}" data-cx-cart-link data-cx-mode="${h.e(sub ? "subscription" : effectiveCheckoutMode(commerce, brand))}"${sub ? ` data-cx-plan="${h.e(plan)}"` : ""}>${sub ? label : subMode ? wOneBtn : label}</a>`;
+
+        let priceBlock: string;
+        let lines: string;
+        let btn: string;
+        if (planKnown && subUnavailable === "one-time") {
+          // storefront, plan may be missing for this market/variant → full one-time fallback
+          const oneTimePrice = live ? `{% if ${v} %}${liveOneTime}{% else %}${manualOneTime}{% endif %}` : manualOneTime;
+          priceBlock = `{% if ${a} %}${live ? liveSub : manualSub}{% else %}${oneTimePrice}{% endif %}`;
+          lines = `{% if ${a} %}${subLinesHtml}{% endif %}`;
+          btn = `{% if ${a} %}${button(subHref, true)}{% else %}${button(oneTimeHref, false)}{% endif %}`;
+        } else if (planKnown) {
+          // "hide" policy: the whole card is wrapped below; inside, the plan is known to exist
+          priceBlock = live ? liveSub : manualSub;
+          lines = subLinesHtml;
+          btn = button(subHref, true);
+        } else if (subMode) {
+          // preview, or storefront without product handle (no lookup possible)
+          priceBlock = manualSub;
+          lines = subLinesHtml;
+          btn = button(subHref, !!plan);
+        } else if (live && vid) {
+          priceBlock = `{% if ${v} %}${liveOneTime}{% else %}${manualOneTime}{% endif %}`;
+          lines = "";
+          btn = button(subHref, false);
+        } else {
+          priceBlock = manualOneTime;
+          lines = "";
+          btn = button(subHref, false);
+        }
+
         const checks = splitDots(c.checks || "")
           .map((x, k) => `<li>${ICONS.check}<span>${h.t(`cards.${i}.checks.${k}`, x)}</span></li>`)
           .join("");
@@ -507,9 +616,12 @@ const pricing: SectionDef = {
         const hideWrap = (inner: string) => {
           // per-market hidden cards (liquid only)
           if (ctx.mode !== "liquid") return inner;
+          let out = inner;
           const hiders = Object.entries(commerce.marketOverrides || {}).filter(([, o]) => o.hideCards?.[String(i)]).map(([cc]) => cc);
-          if (!hiders.length) return inner;
-          return `{% unless ${hiders.map((cc) => `_c == '${cc}'`).join(" or ")} %}${inner}{% endunless %}`;
+          if (hiders.length) out = `{% unless ${hiders.map((cc) => `_c == '${cc}'`).join(" or ")} %}${out}{% endunless %}`;
+          // subscription: hide the whole card where the plan isn't offered
+          if (planKnown && subUnavailable === "hide") out = `{% if ${a} %}${out}{% endif %}`;
+          return out;
         };
         return hideWrap(`
 <li class="cx-card${c.highlight ? " cx-card--highlight" : ""}" data-cx-card="${i}">
@@ -519,9 +631,10 @@ const pricing: SectionDef = {
     <h3 class="cx-card__title">${itemT(h, "cards", i, "title", c.title)}</h3>
     <div class="cx-card__media">${h.img(c.image, { cls: "cx-card__img", widths: [300, 600], aspect: "1/1", fallbackLabel: "Product image" })}</div>
     <div class="cx-price">${priceBlock}</div>
+    ${lines}
     ${c.description ? `<p class="cx-card__desc">${itemT(h, "cards", i, "description", c.description)}</p>` : ""}
     ${gift}
-    <a class="${brand.ctaStyle === "ink" ? "cx-btn cx-btn--ink" : "cx-btn cx-btn--accent"} cx-btn--block cx-card__btn" href="${href}" data-cx-event="add_to_cart" data-cx-card="${i}" data-cx-cart-link data-cx-mode="${h.e(effectiveCheckoutMode(commerce, brand))}">${itemT(h, "cards", i, "buttonLabel", c.buttonLabel || "Add to cart")}</a>
+    ${btn}
     <ul class="cx-card__checks">${checks}${defaultChecks}</ul>
   </div>
 </li>`);
@@ -531,7 +644,8 @@ const pricing: SectionDef = {
     const crossSell = d.crossSellEnabled
       ? `<div class="cx-cross"><div class="cx-cross__media">${h.img(d.crossSellImage, { cls: "cx-cross__img", widths: [200, 400], aspect: "1/1", fallbackLabel: "Set image" })}</div><div class="cx-cross__copy"><h3 class="cx-cross__title">${h.t("crossSellTitle", d.crossSellTitle)}</h3><p>${h.t("crossSellText", d.crossSellText)}</p></div><a class="cx-btn cx-btn--secondary" href="${h.e(d.crossSellUrl || "#cx-offer")}" data-cx-event="cross_sell_click">${h.t("crossSellButton", d.crossSellButton || "See the set")}</a></div>`
       : "";
-    const inner = `${liquidLookup}<div class="cx-pricing">${h.heading("heading", d.heading, { align: "center" })}<ul class="cx-cards cx-cards--${Math.min(4, Math.max(1, cards.length))}">${cardHtml}</ul>${d.footnote ? `<p class="cx-pricing__note">${h.t("footnote", d.footnote)}</p>` : ""}${crossSell}</div>`;
+    const terms = subMode && d.subscriptionTerms ? `<p class="cx-pricing__terms">${h.t("subscriptionTerms", d.subscriptionTerms)}</p>` : "";
+    const inner = `${liquidLookup}<div class="cx-pricing"${subMode ? ' data-cx-purchase="subscription"' : ""}>${h.heading("heading", d.heading, { align: "center" })}<ul class="cx-cards cx-cards--${Math.min(4, Math.max(1, cards.length))}">${cardHtml}</ul>${terms}${d.footnote ? `<p class="cx-pricing__note">${h.t("footnote", d.footnote)}</p>` : ""}${crossSell}</div>`;
     return h.band(inner, { tone: "white", id: "cx-offer", extraClass: "cx-band--offer" });
   },
 };

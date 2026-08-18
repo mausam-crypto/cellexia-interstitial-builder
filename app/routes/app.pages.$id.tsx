@@ -2,15 +2,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { useFetcher, useLoaderData, useNavigate } from "react-router";
 import { Page, Button, Badge, InlineStack, Text, Banner, ButtonGroup, Modal, TextField, Select, Tooltip } from "@shopify/polaris";
-import type { PageContent, SectionInstance, ImageValue } from "../lib/types";
+import type { PageContent, SectionInstance, ImageValue, FieldDef } from "../lib/types";
 import { requireAdmin } from "../lib/auth.server";
 import { getPage, getSettings, saveDraft, publishPage, unpublishPage, deletePage, duplicatePage } from "../lib/pages.server";
 import { SECTION_DEFS } from "../lib/sections/registry";
+import { applySlotHintOverrides } from "../lib/images/slots";
 import { normalizePage } from "../lib/brand";
 import { renderPage } from "../lib/render/render-page";
 import { collectPageStrings } from "../lib/integrations/translate.server";
 import prisma from "../db.server";
 import { SectionForm, type AiHelpers } from "../components/editor/SectionForm";
+import { ImagesPanel } from "../components/editor/ImagesPanel";
+import { subscriptionBrief } from "../lib/commerce/subscription";
 import { SectionList, PageSettingsPanel, CommercePanel, TranslationsPanel } from "../components/editor/Panels";
 import type { ClientSectionDef, LocaleInfo, MarketInfo, LibraryImage } from "../components/editor/types";
 import { fetchShopLocalesAndMarkets } from "../lib/shop-info.server";
@@ -22,7 +25,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { brand, defaults, secrets } = await getSettings(shop);
   const { locales, markets } = await fetchShopLocalesAndMarkets(admin);
   const library = await prisma.imageAsset.findMany({ where: { shop }, orderBy: { createdAt: "desc" }, take: 80 });
-  const defs: ClientSectionDef[] = SECTION_DEFS.map((d) => ({ type: d.type, label: d.label, description: d.description, icon: d.icon, category: d.category, singleton: d.singleton, fields: d.fields, defaults: d.defaults() }));
+  // Image fields carry the merchant's default prompts from the Prompts page (fallback prompt + hint for the writer).
+  const hinted = applySlotHintOverrides(Object.fromEntries(SECTION_DEFS.map((d) => [d.type, { label: d.label, fields: d.fields }])), brand.prompts?.slotHints);
+  const defs: ClientSectionDef[] = SECTION_DEFS.map((d) => ({ type: d.type, label: d.label, description: d.description, icon: d.icon, category: d.category, singleton: d.singleton, fields: hinted[d.type]?.fields || d.fields, defaults: d.defaults() }));
   const storeUrl = (brand.storeUrl || `https://${defaults.storeDomain || shop}`).replace(/\/$/, "");
   const strings = collectPageStrings(page.draft).map(({ path, value }) => ({ path, value }));
   const liquid = renderPage({ page: page.draft, brand, pageId: page.id, slug: page.slug, mode: "liquid", proxyPath: defaults.proxyPrefix });
@@ -48,12 +53,14 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     proxyPrefix: defaults.proxyPrefix,
     disclaimerDefault: brand.disclaimer,
     discountDefaults: brand.discountDefaults,
+    afterAddToCart: brand.afterAddToCart,
     strings,
     liquidBytes: liquid.bytes,
     liquidWarnings: liquid.warnings,
     aiAvailable: !!secrets.anthropicApiKey,
     deeplAvailable: !!secrets.deeplApiKey,
     imageAiAvailable: !!(secrets.higgsfieldKeyId && secrets.higgsfieldKeySecret) || !!secrets.anthropicApiKey,
+    photoAiAvailable: !!(secrets.higgsfieldKeyId && secrets.higgsfieldKeySecret),
   };
 };
 
@@ -94,7 +101,28 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   return { ok: false, intent, message: "Unknown action" };
 };
 
-type Tab = "sections" | "page" | "commerce" | "translations";
+type Tab = "sections" | "images" | "page" | "commerce" | "translations";
+
+/** Overlay the LATEST image values (section-level and inside list items, by index) onto AI-generated section data. */
+function withLatestImages(fields: FieldDef[], generated: Record<string, any>, latest: Record<string, any>): Record<string, any> {
+  const out: Record<string, any> = { ...generated };
+  for (const f of fields) {
+    if (f.type === "image") {
+      if (latest?.[f.key] !== undefined) out[f.key] = latest[f.key];
+    } else if (f.type === "list" && Array.isArray(out[f.key]) && Array.isArray(latest?.[f.key])) {
+      const imgKeys = (f.item || []).filter((sf) => sf.type === "image").map((sf) => sf.key);
+      if (!imgKeys.length) continue;
+      out[f.key] = out[f.key].map((item: any, i: number) => {
+        const li = latest[f.key][i];
+        if (!li) return item;
+        const patch: Record<string, any> = {};
+        for (const k of imgKeys) if (li[k] !== undefined) patch[k] = li[k];
+        return { ...item, ...patch };
+      });
+    }
+  }
+  return out;
+}
 
 export default function PageEditor() {
   const data = useLoaderData<typeof loader>();
@@ -125,8 +153,10 @@ export default function PageEditor() {
   contentRef.current = content;
 
   // ---- autosave (debounced) ----
+  const savedSnapshot = useRef<{ content: PageContent; title: string; slug: string; isTemplate: boolean } | null>(null);
   const doSave = useCallback(() => {
     setSaveState("saving");
+    savedSnapshot.current = { content: contentRef.current, title, slug, isTemplate };
     saver.submit({ intent: "save", content: JSON.stringify(contentRef.current), title, slug, isTemplate: String(isTemplate) }, { method: "post" });
   }, [saver, title, slug, isTemplate]);
 
@@ -142,8 +172,15 @@ export default function PageEditor() {
     const d = saver.data as any;
     if (!d) return;
     if (d.ok && d.intent === "save") {
-      setSaveState("saved");
-      setDirty(false);
+      // Edits (or generated images) that landed while the request was in flight stay dirty → next debounce saves them.
+      const snap = savedSnapshot.current;
+      const unchanged = !!snap && snap.content === contentRef.current && snap.title === title && snap.slug === slug && snap.isTemplate === isTemplate;
+      setSaveState(unchanged ? "saved" : "saving");
+      if (unchanged) setDirty(false);
+      else {
+        clearTimeout(timer.current);
+        timer.current = setTimeout(doSave, 300);
+      }
       if (d.slug && d.slug !== slug) setSlug(d.slug);
       if (d.strings) setStrings(d.strings);
       setPreviewKey((k) => k + 1);
@@ -164,6 +201,15 @@ export default function PageEditor() {
 
   const update = (next: PageContent) => {
     setContent(next);
+    setDirty(true);
+  };
+  /** Functional update against the latest state — safe when several async results land close together (Images panel). */
+  const updateFn = (fn: (c: PageContent) => PageContent) => {
+    setContent((prev) => {
+      const next = fn(prev);
+      contentRef.current = next;
+      return next;
+    });
     setDirty(true);
   };
   const updateSections = (sections: SectionInstance[]) => update({ ...content, sections });
@@ -191,6 +237,7 @@ export default function PageEditor() {
   const ai: AiHelpers = {
     aiAvailable: data.aiAvailable,
     imageAiAvailable: data.imageAiAvailable,
+    photoAiAvailable: data.photoAiAvailable,
     library: data.library,
     generateImage: async ({ prompt, aspect, provider, alt }) => {
       const r = await api("/api/ai", { action: "image", prompt, aspect, provider, alt });
@@ -204,11 +251,17 @@ export default function PageEditor() {
       if (!res.ok || json.error) throw new Error(json.error || "Upload failed");
       return json.image as ImageValue;
     },
+    writeImagePrompts: async (c, brief) => {
+      const r = await api("/api/ai", { action: "image-prompts", content: c, brief });
+      return { cast: r.cast || "", prompts: r.prompts || [] };
+    },
     generateSectionCopy: async (brief) => {
       if (!selectedSection) return;
       const def = defs[selectedSection.type];
-      const r = await api("/api/ai", { action: "section-copy", sectionType: selectedSection.type, sectionLabel: def.label, fields: def.fields, currentData: selectedSection.data, brief, productName: content.commerce.productTitle });
-      updateSections(content.sections.map((s) => (s.id === selectedSection.id ? { ...s, data: r.data } : s)));
+      const id = selectedSection.id;
+      const r = await api("/api/ai", { action: "section-copy", sectionType: selectedSection.type, sectionLabel: def.label, fields: def.fields, currentData: selectedSection.data, brief: [brief, subscriptionBrief(contentRef.current)].filter(Boolean).join("\n\n"), productName: content.commerce.productTitle });
+      // Functional: images/prompts that landed meanwhile (Images tab pool) must survive; keep the latest images of this section too.
+      updateFn((c) => ({ ...c, sections: c.sections.map((s) => (s.id === id ? { ...s, data: withLatestImages(def.fields, r.data, s.data) } : s)) }));
     },
   };
   const shopifyBridge: any = typeof window !== "undefined" ? (window as any).shopify : null;
@@ -238,6 +291,7 @@ export default function PageEditor() {
     const id = prompt(`Variant ID for card ${cardIndex + 1}:`);
     return id ? { id, title: "" } : null;
   };
+  const loadSellingPlans = async (args: { handle: string; productId?: string }) => api("/api/products", { action: "sellingPlans", handle: args.handle, productId: args.productId });
   const checkDiscount = async (code: string) => {
     try {
       return await api("/api/products", { action: "checkDiscount", code });
@@ -247,8 +301,10 @@ export default function PageEditor() {
   };
   const translate = async (args: { provider: "deepl" | "claude"; targetLocales: string[]; onlyMissing: boolean }) => {
     try {
-      const r = await api("/api/ai", { action: "translate-page", pageId: data.page.id, content, ...args });
-      return { ok: true, message: r.message, content: r.content };
+      const r = await api("/api/ai", { action: "translate-page", pageId: data.page.id, content: contentRef.current, ...args });
+      // Merge only the translations onto the latest content (images/prompts generated meanwhile stay).
+      const merged = { ...contentRef.current, translations: r.content?.translations || contentRef.current.translations };
+      return { ok: true, message: r.message, content: merged };
     } catch (e: any) {
       return { ok: false, message: `Translation failed: ${e.message}` };
     }
@@ -316,9 +372,9 @@ export default function PageEditor() {
         {/* MIDDLE: form */}
         <div className="ib-col ib-col--form">
           <div className="ib-tabs">
-            {(["sections", "page", "commerce", "translations"] as Tab[]).map((t) => (
+            {(["sections", "images", "page", "commerce", "translations"] as Tab[]).map((t) => (
               <button key={t} className={`ib-tab${tab === t ? " is-active" : ""}`} onClick={() => setTab(t)}>
-                {t === "sections" ? "Section" : t === "page" ? "Page settings" : t === "commerce" ? "Commerce" : "Translations"}
+                {t === "sections" ? "Section" : t === "images" ? "Images" : t === "page" ? "Page settings" : t === "commerce" ? "Commerce" : "Translations"}
               </button>
             ))}
           </div>
@@ -329,15 +385,19 @@ export default function PageEditor() {
                   <span>{defs[selectedSection.type].icon} {defs[selectedSection.type].label}</span>
                   {selectedSection.hidden && <Badge>Hidden</Badge>}
                 </div>
-                <SectionForm key={selectedSection.id} def={defs[selectedSection.type]} data={selectedSection.data} onChange={(d) => updateSections(content.sections.map((s) => (s.id === selectedSection.id ? { ...s, data: d } : s)))} ai={ai} />
+                <SectionForm key={selectedSection.id} def={defs[selectedSection.type]} data={selectedSection.data} onChange={(d) => { const id = selectedSection.id; updateFn((c) => ({ ...c, sections: c.sections.map((s) => (s.id === id ? { ...s, data: d } : s)) })); }} ai={ai} />
               </>
             ) : (
               <div className="ib-form">
                 <Text as="p" tone="subdued">Select a section on the left to edit it.</Text>
               </div>
             ))}
+          {/* Always mounted so a running generation keeps its progress/Stop while you edit other tabs. */}
+          <div style={{ padding: 12, display: tab === "images" ? "block" : "none" }}>
+            <ImagesPanel content={content} apply={updateFn} defs={defs} ai={ai} productName={content.commerce.productTitle} />
+          </div>
           {tab === "page" && <PageSettingsPanel title={title} slug={slug} content={content} isTemplate={isTemplate} onMeta={(m) => { if (m.title !== undefined) setTitle(m.title); if (m.slug !== undefined) setSlug(m.slug); if (m.isTemplate !== undefined) setIsTemplate(m.isTemplate); setDirty(true); }} onContent={update} storeUrl={data.storeUrl} proxyPrefix={data.proxyPrefix} disclaimerDefault={data.disclaimerDefault} />}
-          {tab === "commerce" && <CommercePanel content={content} onContent={update} markets={data.markets as MarketInfo[]} pickProduct={pickProduct} pickVariant={pickVariant} checkDiscount={checkDiscount} discountDefaults={data.discountDefaults} />}
+          {tab === "commerce" && <CommercePanel content={content} onContent={update} markets={data.markets as MarketInfo[]} pickProduct={pickProduct} pickVariant={pickVariant} checkDiscount={checkDiscount} discountDefaults={data.discountDefaults} afterAddToCart={data.afterAddToCart} loadSellingPlans={loadSellingPlans} applyContent={updateFn} />}
           {tab === "translations" && <TranslationsPanel content={content} onContent={update} locales={data.locales as LocaleInfo[]} strings={strings} translate={translate} aiAvailable={data.aiAvailable} deeplAvailable={data.deeplAvailable} />}
         </div>
 

@@ -21,8 +21,22 @@ import { uploadFileBuffer, mimeFromName } from "../integrations/shopify-files.se
  * Bump when existing shops need a data migration on next load (see migrateShopData):
  *  1 — initial seed
  *  2 — free gift (Bamboo Beauty Towel) removed from every interstitial (2026-08-17)
+ *  3 — pages still on the v1 "straight to checkout" wiring follow the store default
+ *      (Settings → After add to cart: add → Shop All with the cart drawer open) (2026-08-17)
  */
-export const SEED_VERSION = 2;
+export const SEED_VERSION = 3;
+
+/**
+ * v1 seeded (and the v1 wizard created) pages with commerce.checkoutMode = "checkout" — the only
+ * mode that existed then. Since v2 the store-wide setting decides ("default"), so an explicit
+ * "checkout" left over from v1 would keep sending visitors straight to checkout. Reset it.
+ */
+export function resetLegacyCheckoutMode(content: PageContent): { content: PageContent; changed: boolean } {
+  if (content.commerce?.checkoutMode !== "checkout") return { content, changed: false };
+  const c: PageContent = JSON.parse(JSON.stringify(content));
+  c.commerce.checkoutMode = "default";
+  return { content: c, changed: true };
+}
 
 /** Strip the towel free gift from a page: add-on line item, gift line/image, their translations. */
 export function stripTowelGift(content: PageContent): { content: PageContent; changed: boolean } {
@@ -75,6 +89,26 @@ async function migrateShopData(shop: string, fromVersion: number, log: (m: strin
     }
     if (touched) await recompileAll(shop);
     log(`migration v2: removed the free-gift towel from ${touched} page(s)`);
+  }
+  if (fromVersion < 3) {
+    // v3: "checkout" (v1's only mode) → "default" so every page follows Settings → After add to cart.
+    const pages = await prisma.page.findMany({ where: { shop } });
+    let touched = 0;
+    for (const p of pages) {
+      const data: any = {};
+      const d = resetLegacyCheckoutMode(normalizePage(safeJson(p.draft)));
+      if (d.changed) data.draft = JSON.stringify(d.content);
+      if (p.published) {
+        const pub = resetLegacyCheckoutMode(normalizePage(safeJson(p.published)));
+        if (pub.changed) data.published = JSON.stringify(pub.content);
+      }
+      if (Object.keys(data).length) {
+        await prisma.page.update({ where: { id: p.id }, data });
+        touched++;
+      }
+    }
+    if (touched) await recompileAll(shop);
+    log(`migration v3: ${touched} page(s) switched from "straight to checkout" to the store default (add to cart → collection)`);
   }
 }
 

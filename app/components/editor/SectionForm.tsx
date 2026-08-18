@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { TextField, Select, Checkbox, Button, InlineStack, BlockStack, Text, Collapsible, Banner, Spinner } from "@shopify/polaris";
-import type { FieldDef, ImageValue } from "../../lib/types";
+import type { FieldDef, ImageValue, PageContent } from "../../lib/types";
 import type { ClientSectionDef, LibraryImage } from "./types";
 
 export interface AiHelpers {
@@ -10,8 +10,13 @@ export interface AiHelpers {
   library: LibraryImage[];
   /** Regenerate the whole section's copy from a brief. */
   generateSectionCopy: (brief: string) => Promise<void>;
+  /** Claude writes one image prompt per slot from the page copy (Images panel). */
+  writeImagePrompts: (content: PageContent, brief: string) => Promise<{ cast: string; prompts: Array<{ id: string; prompt: string; alt: string; provider: "higgsfield" | "claude-svg" }> }>;
   aiAvailable: boolean;
+  /** Any image provider configured (Higgsfield or Claude SVG). */
   imageAiAvailable: boolean;
+  /** Higgsfield configured (photos). */
+  photoAiAvailable?: boolean;
 }
 
 interface Props {
@@ -24,6 +29,10 @@ interface Props {
 }
 
 export function SectionForm({ def, data, onChange, ai, filter = "all" }: Props) {
+  // Async field callbacks (uploads, AI generation ~1 min) must merge into the LATEST section data,
+  // not the render-time snapshot, or they overwrite whatever landed meanwhile (e.g. Images tab results).
+  const dataRef = useRef(data);
+  dataRef.current = data;
   const [brief, setBrief] = useState("");
   const [busy, setBusy] = useState(false);
   const fields = def.fields.filter((f) => !f.advanced && (filter === "all" || f.productSpecific));
@@ -34,7 +43,7 @@ export function SectionForm({ def, data, onChange, ai, filter = "all" }: Props) 
           {def.description}
         </Text>
         {fields.map((f) => (
-          <FieldInput key={f.key} field={f} value={data[f.key]} onChange={(v) => onChange({ ...data, [f.key]: v })} ai={ai} />
+          <FieldInput key={f.key} field={f} value={data[f.key]} onChange={(v) => onChange({ ...dataRef.current, [f.key]: v })} ai={ai} />
         ))}
         {ai.aiAvailable && filter === "all" && (
           <div style={{ borderTop: "1px solid #eee", paddingTop: 12 }}>
@@ -184,8 +193,13 @@ export function ListField({ field, value, onChange, ai }: { field: FieldDef; val
 
 export function ImageField({ field, value, onChange, ai }: { field: FieldDef; value: ImageValue | undefined; onChange: (v: ImageValue | undefined) => void; ai: AiHelpers }) {
   const [mode, setMode] = useState<"none" | "url" | "ai" | "library">("none");
-  const [prompt, setPrompt] = useState(field.imagePrompt || "");
-  const [provider, setProvider] = useState<string>("higgsfield");
+  const [prompt, setPrompt] = useState(value?.prompt || field.imagePrompt || "");
+  const [provider, setProvider] = useState<string>(value?.provider || (field.aiImage === "diagram" ? "claude-svg" : "higgsfield"));
+  // Keep in sync when the Images panel writes a prompt for this slot.
+  useEffect(() => {
+    if (value?.prompt) setPrompt(value.prompt);
+    if (value?.provider) setProvider(value.provider);
+  }, [value?.prompt, value?.provider]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const src = value?.src || "";
@@ -222,7 +236,7 @@ export function ImageField({ field, value, onChange, ai }: { field: FieldDef; va
               <Button size="slim" onClick={() => setMode(mode === "url" ? "none" : "url")}>URL</Button>
               <Button size="slim" onClick={() => setMode(mode === "library" ? "none" : "library")}>Library</Button>
               {ai.imageAiAvailable && <Button size="slim" onClick={() => setMode(mode === "ai" ? "none" : "ai")}>Generate with AI</Button>}
-              {src && <Button size="slim" tone="critical" variant="plain" onClick={() => onChange(undefined)}>Remove</Button>}
+              {src && <Button size="slim" tone="critical" variant="plain" onClick={() => onChange(value?.prompt ? { ...value, src: "" } : undefined)}>Remove</Button>}
               {busy && <Spinner size="small" />}
             </InlineStack>
             {mode === "url" && <TextField label="Image URL" labelHidden value={src} onChange={(v) => onChange({ ...(value || {}), src: v })} autoComplete="off" placeholder="https://cdn.shopify.com/…" />}
@@ -236,7 +250,7 @@ export function ImageField({ field, value, onChange, ai }: { field: FieldDef; va
             )}
             {mode === "ai" && (
               <BlockStack gap="150">
-                <TextField label="Prompt" labelHidden value={prompt} onChange={setPrompt} multiline={3} autoComplete="off" helpText="Default prompt for this slot — edit freely. Brand style (unretouched, natural light…) is appended automatically." />
+                <TextField label="Prompt" labelHidden value={prompt} onChange={setPrompt} multiline={3} autoComplete="off" helpText={value?.prompt ? "Prompt written from the page copy (Images tab) — edit freely. Brand style is appended automatically." : "Default prompt for this slot — edit freely, or let the Images tab write prompts for the whole page. Brand style (unretouched, natural light…) is appended automatically."} />
                 <InlineStack gap="200" blockAlign="end">
                   <Select label="Provider" labelHidden options={[{ label: "Higgsfield (photo)", value: "higgsfield" }, { label: "Claude (SVG diagram)", value: "claude-svg" }]} value={provider} onChange={setProvider} />
                   <Button
@@ -248,7 +262,7 @@ export function ImageField({ field, value, onChange, ai }: { field: FieldDef; va
                       setErr(null);
                       try {
                         const r = await ai.generateImage({ prompt, aspect: field.imageAspect, provider, alt: value?.alt });
-                        if (r) onChange({ ...(value || {}), ...r });
+                        if (r) onChange({ ...(value || {}), ...r, prompt, provider: provider as any, alt: (value?.promptAlt || "").trim() || (value?.alt?.trim() ? value.alt : r.alt) });
                       } catch (ex: any) {
                         setErr(ex?.message || String(ex));
                       } finally {

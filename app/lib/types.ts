@@ -41,6 +41,13 @@ export interface FieldDef {
   imagePrompt?: string;
   /** For type "image": suggested aspect ratio (e.g. "4:3", "1:1"). */
   imageAspect?: string;
+  /**
+   * For type "image": how the one-click image pipeline treats the slot.
+   *  "photo"   (default) photoreal image via Higgsfield
+   *  "diagram" editorial SVG via Claude
+   *  "skip"    never auto-generated (real portraits, product packshots from Shopify, icons/badges)
+   */
+  aiImage?: "photo" | "diagram" | "skip";
   placeholder?: string;
   /** Group label used to visually cluster fields in the editor. */
   group?: string;
@@ -57,6 +64,12 @@ export interface ImageValue {
   note?: string;
   width?: number;
   height?: number;
+  /** Image-generation prompt for this slot (pre-written from the page copy; editable). */
+  prompt?: string;
+  /** Provider the prompt was written for. */
+  provider?: "higgsfield" | "claude-svg";
+  /** Alt text written together with the prompt (used once the image is (re)generated). */
+  promptAlt?: string;
 }
 
 export interface SectionInstance {
@@ -98,8 +111,50 @@ export interface MarketOverride {
   crossSellUrl?: string;
 }
 
+/** One Shopify selling plan as loaded from the Admin API (native subscriptions). */
+export interface SellingPlanInfo {
+  /** Numeric id (what the cart needs). */
+  id: string;
+  gid: string;
+  name: string;
+  groupName: string;
+  /** e.g. "every 4 weeks" (delivery interval). */
+  frequency: string;
+  /** Percentage off the first order(s) when the plan has an intro/trial policy. */
+  firstPct?: number;
+  /** Percentage off every (subsequent) delivery. */
+  recurringPct?: number;
+  /** After how many orders the recurring policy applies (intro/trial). */
+  afterCycle?: number;
+  /** Non-percentage policies: fixed amount off or fixed price (amount in the shop currency). */
+  firstMoney?: { kind: "amount_off" | "price"; amount: number; currency: string };
+  recurringMoney?: { kind: "amount_off" | "price"; amount: number; currency: string };
+  /** Billing interval differs from delivery interval (prepaid: several deliveries charged at once). */
+  prepaid?: boolean;
+  billing?: string;
+  /** Human summary, e.g. "20% off first order, then 10% off". */
+  summary: string;
+}
+
+/**
+ * Subscription mode (native Shopify selling plans). The page then sells subscriptions only:
+ * every pricing card = variant + selling plan (cards = delivery frequencies), buttons add
+ * `selling_plan`, prices come from the plan's allocation, copy carries the recurring terms.
+ */
+export interface SubscriptionSettings {
+  /** How the plans are priced — drives the default copy: "simple" 5–10% off every delivery; "intro" 20% off first then 5–10%; "trial" 50% off first delivery. */
+  offerType: "simple" | "intro" | "trial";
+  /** A market/variant without this plan: show a one-time button instead, or hide the card. */
+  unavailable: "one-time" | "hide";
+  /** Selling plans loaded for the product (editor pick-list; refreshed with "Load selling plans"). */
+  plans: SellingPlanInfo[];
+}
+
 export interface CommerceSettings {
   productHandle: string;
+  /** "one-time" (default) or "subscription" (subscription-only page, native selling plans). */
+  purchaseMode: "one-time" | "subscription";
+  subscription: SubscriptionSettings;
   productTitle?: string;
   productId?: string;
   discountCode: string;
@@ -122,6 +177,8 @@ export interface StickyBarSettings {
   enabled: boolean;
   text: string; // e.g. "★★★★★ [12,000]+ reviews"
   buttonLabel: string;
+  /** Label before subscription presets replaced it (restored when leaving subscription mode). */
+  prevButtonLabel?: string;
   showAfterSectionIndex: number; // appears once this section has scrolled off (0 = hero)
 }
 
@@ -141,6 +198,8 @@ export interface PageContent {
   disclaimerOverride?: string;
   /** Store header: "default" follows Settings (shown by default), "show" / "hide" override per page. */
   header?: "default" | "show" | "hide";
+  /** One-click image pipeline: the recurring protagonist + direction used for this page's prompts (reused on re-runs). */
+  imagePlan?: { cast: string; brief?: string; writtenAt: string };
   /** locale → (path → translated string). Paths look like "sections.<id>.<key>" or "sections.<id>.<key>.<index>.<subkey>". */
   translations: Record<string, Record<string, string>>;
   /** Internal note for the team (angle, advertorial link, etc.) */
@@ -193,6 +252,8 @@ export interface BrandSettings {
     /** Ask the theme to open its cart drawer on arrival (needs the app embed enabled in the theme editor). */
     openCart: boolean;
   };
+  /** Editable AI prompts (image-prompt writer, SVG diagrams, per-slot default prompts). Empty = built-in default. */
+  prompts?: import("./ai/prompt-defaults").PromptSettings;
   /** Discount defaults offered in the wizard */
   discountDefaults: {
     twoPack: string;

@@ -1,33 +1,56 @@
 {%- comment -%}
   App embed: when a visitor arrives from an interstitial add-to-cart button, the URL carries
   ?cx_cart=open (Settings → After add to cart → "open the cart drawer"). This script asks the
-  theme to open its cart drawer/mini-cart by clicking the header cart trigger, then cleans the URL.
-  Nothing runs on pages without the parameter.
+  theme to open its cart drawer/mini-cart by clicking the header cart trigger, checks that the
+  drawer really opened (so a click that fired before the theme bound its handlers is retried,
+  and an open drawer is never toggled shut), then removes the parameter from the URL.
+  Nothing runs on pages without the parameter. Must be enabled once in the theme editor:
+  Online Store → Themes → Customize → App embeds → "Open cart after add".
 {%- endcomment -%}
-<script>
+<script data-cx-cart-opener>
 (function () {
   if (!/[?&]cx_cart=open(?:&|$)/.test(location.search)) return;
-  var selectors = {{ block.settings.trigger_selector | json }} || 'button.icon--cart, [data-cart-toggle], [data-action="open-cart"], .js-cart-toggle, .cart-toggle, a[href$="/cart"], #cart-icon-bubble';
-  var delay = Number({{ block.settings.delay_ms | json }}) || 500;
-  function clean() { try { var u = new URL(location.href); u.searchParams.delete('cx_cart'); history.replaceState(null, '', u.pathname + (u.search || '') + u.hash); } catch (e) {} }
-  function tryOpen() {
-    var els = document.querySelectorAll(selectors);
+  var triggers = {{ block.settings.trigger_selector | json }} || 'button.icon--cart, [data-cart-toggle], [data-action="open-cart"], .js-cart-toggle, .cart-toggle, a[href$="/cart"], #cart-icon-bubble';
+  var openedSel = {{ block.settings.opened_selector | json }} || '';
+  var delay = Number({{ block.settings.delay_ms | json }}) || 400;
+  var maxTries = 20;
+  function isOpen() {
+    if (!openedSel) return false;
+    try { return !!document.querySelector(openedSel); } catch (e) { return false; }
+  }
+  function clean() {
+    try { var u = new URL(location.href); u.searchParams.delete('cx_cart'); history.replaceState(null, '', u.pathname + (u.search || '') + u.hash); } catch (e) {}
+  }
+  function clickTrigger() {
+    var els;
+    try { els = document.querySelectorAll(triggers); } catch (e) { return false; }
     for (var i = 0; i < els.length; i++) {
       var el = els[i];
       var r = el.getBoundingClientRect();
-      if (r.width === 0 && r.height === 0) continue; // hidden (e.g. mobile/desktop duplicates)
-      try { el.click(); return true; } catch (e) {}
+      if (r.width === 0 && r.height === 0) continue; // hidden (e.g. the mobile/desktop duplicate)
+      try {
+        el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+      } catch (e) {
+        try { el.click(); } catch (e2) { continue; }
+      }
+      return true;
     }
     return false;
   }
   function run() {
-    var attempts = 0;
+    var tries = 0;
     var timer = setInterval(function () {
-      attempts++;
-      if (tryOpen() || attempts > 12) { clearInterval(timer); clean(); }
+      tries++;
+      if (isOpen()) { clearInterval(timer); clean(); return; }
+      var clicked = clickTrigger();
+      // No way to verify (no "opened" selector configured): click once and stop.
+      if (clicked && !openedSel) { clearInterval(timer); clean(); return; }
+      if (tries >= maxTries) { clearInterval(timer); clean(); }
     }, delay);
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run); else run();
+  // Wait for the theme's own scripts to have bound their handlers.
+  if (document.readyState === 'complete') setTimeout(run, delay);
+  else window.addEventListener('load', function () { setTimeout(run, delay); });
 })();
 </script>
 {%- comment -%} Shopify limits: block "name" ≤ 25 characters, setting labels ≤ 70 — longer values make `shopify app deploy` fail. {%- endcomment -%}
@@ -44,13 +67,20 @@
       "info": "The header element the theme uses to open its cart drawer. Default matches the Cellexia (Sleepify) theme."
     },
     {
+      "type": "text",
+      "id": "opened_selector",
+      "label": "Drawer is open when this matches (CSS selector)",
+      "default": ".mini-cart.is-open, body.cart-open, .cart-drawer.is-open, cart-drawer.active",
+      "info": "Used to verify the drawer opened (retries otherwise, never toggles it shut). Leave empty to click once without checking."
+    },
+    {
       "type": "range",
       "id": "delay_ms",
-      "label": "Delay before opening (ms)",
+      "label": "Delay between attempts (ms)",
       "min": 100,
-      "max": 3000,
+      "max": 2000,
       "step": 100,
-      "default": 500
+      "default": 400
     }
   ]
 }
